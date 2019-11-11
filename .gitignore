@@ -102,9 +102,11 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
 *.zip
 *.png
 .DS_Store
 *.csv
 Datasets/training/data.h5
 Datasets/training/dataNorm.h5
+
