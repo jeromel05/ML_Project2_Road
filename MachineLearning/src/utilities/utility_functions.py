@@ -6,6 +6,9 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import os,sys
 from PIL import Image
+from skimage.filters import prewitt_h,prewitt_v
+from skimage.filters import sobel_h,sobel_v
+from scipy import ndimage, misc
 
 
 # Helper functions
@@ -71,8 +74,23 @@ def make_img_overlay(img, predicted_img):
     new_img = Image.blend(background, overlay, 0.2)
     return new_img
 
+def calculate_f1_score(actual, predictions):
+  
+    total_predicted_positives = predictions.sum()
+    total_actual_positives = predictions.sum()
+    true_positives = (actual*predictions).sum()
+    
+    precision = true_positives/total_predicted_positives
+    recall = true_positives/total_actual_positives
+    
+    f1_score = 2 * ( precision * recall )/( precision + recall )
+    
+    return f1_score
+    
+
 #DEFINITION OF FEATURES
 # Extract 6-dimensional features consisting of average RGB color as well as variance
+#inutile pck on a normalisé avant
 def extract_features(img):
     #shape 1x3 + 1x3 = 1x6
     feat_m = np.mean(img, axis=(0,1))
@@ -87,7 +105,7 @@ def extract_features_2d(img):
     feat = np.append(feat_m, feat_v)
     return feat
 
-# Extract features for a given image
+# Extract features for a given image, used at the end for visual comparison
 def extract_img_features(filename,patch_size):
     img = load_image(filename)
     img_patches = img_crop(img, patch_size, patch_size)
@@ -110,11 +128,6 @@ def min_and_max_features(img):
     feat = np.append(feat_max_rgb, feat_min_rgb)
     return feat
 
-from skimage.filters import prewitt_h,prewitt_v
-from skimage.filters import sobel_h,sobel_v
-
-from scipy import ndimage, misc
-
 
 def horizontal_and_vertical_edge_detection(image1):
     """
@@ -126,7 +139,7 @@ def horizontal_and_vertical_edge_detection(image1):
     
     for i in range(nb_channels):
         edges_prewitt_horizontal = sobel_h(image1[:,:,i])
-        #calculating vertical edges using prewitt kernel
+        #calculating vertical edges using sobel kernel
         edges_prewitt_vertical = sobel_v(image1[:,:,i])
         
         feat_edge_vert_avg[0,i] = np.mean(edges_prewitt_vertical)
@@ -140,16 +153,27 @@ def laplace_gaussian_edge_detection(image1):
     """
     nb_channels = image1.shape[2]
     feat_edges_laplace_gaussian = np.zeros((2*nb_channels))
+    sum_edges_col = np.array([])
+    sum_edges_row = np.array([])
     
     for i in range(nb_channels):
         edges_image = ndimage.gaussian_laplace(image1[:,:,i], sigma=1.5)
+        feat_road_vert = np.sum(edges_image,axis=0)/edges_image.shape[0]/255
+        feat_road_hori = np.sum(edges_image,axis=1)/edges_image.shape[1]/255
+        feat_road_vert = feat_road_vert.reshape(1,feat_road_vert.shape[0])
+        feat_road_hori = feat_road_hori.reshape(1,feat_road_hori.shape[0])
+        sum_edges_col = np.append(sum_edges_col, feat_road_vert)
+        sum_edges_row = np.append(sum_edges_row, feat_road_hori)
         feat_edges_laplace_gaussian[i] = np.mean(edges_image)
-        feat_edges_laplace_gaussian[2*i] = np.var(edges_image)
+        feat_edges_laplace_gaussian[i+nb_channels] = np.var(edges_image)
+        #print(edges_image)
         #plt.imshow(edges_image)
         #plt.show()
         #print(np.max(edges_image),np.min(edges_image),np.mean(edges_image))
-        
-    return feat_edges_laplace_gaussian
+        #print(sum_edges_col.shape)
+    feat_edges_laplace_gaussian = feat_edges_laplace_gaussian.reshape(1,feat_edges_laplace_gaussian.shape[0])
+    #return np.append((sum_edges_col.ravel(),sum_edges_row.ravel(),feat_edges_laplace_gaussian))
+    return np.concatenate((sum_edges_col.ravel(),sum_edges_row.ravel(),np.squeeze(feat_edges_laplace_gaussian)),axis=0)
 
 def feature_expansion(features,degree):
     """
@@ -189,8 +213,11 @@ def get_gray_mask(img):
     return mask_gray
 
 def get_grey_features(mask):
-    feat_road_vert = (np.sum(mask,axis=0)/mask.shape[0]/255)
-    feat_road_hori = (np.sum(mask,axis=1)/mask.shape[1]/255)
+    """
+    returns the proportion of gey/black pixels in each line (400) and in each column (400)
+    """
+    feat_road_vert = np.sum(mask,axis=0)/mask.shape[0]/255
+    feat_road_hori = np.sum(mask,axis=1)/mask.shape[1]/255
     feat_road_vert = feat_road_vert.reshape(1,feat_road_vert.shape[0])
     feat_road_hori = feat_road_hori.reshape(1,feat_road_hori.shape[0])
     # a voir si pas hozintal/verical
