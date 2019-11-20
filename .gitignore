@@ -109,3 +109,6 @@ venv.bak/
 *.csv
 *.h5
 
+Datasets/grid.jpg
+src/houghlines3.jpg
+src/houghlines5.jpg
