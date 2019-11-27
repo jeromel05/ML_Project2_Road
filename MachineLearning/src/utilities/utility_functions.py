@@ -131,25 +131,28 @@ def min_and_max_features(img):
 
 def horizontal_and_vertical_edge_detection(image1):
     """
-    applies a basic vertical and horizontal edge detection filter and then takes the mean for each channel
+    applies a the sobel vertical and horizontal edge detection filter and then takes the mean for each channel
+    dim = 2 * 3 = 6
     """
     nb_channels = image1.shape[2]
     feat_edge_vert_avg = np.zeros((1,nb_channels))
     feat_edge_hori_avg = np.zeros((1,nb_channels))
     
     for i in range(nb_channels):
-        edges_prewitt_horizontal = sobel_h(image1[:,:,i])
+        edges_horizontal = sobel_h(image1[:,:,i])
         #calculating vertical edges using sobel kernel
-        edges_prewitt_vertical = sobel_v(image1[:,:,i])
-        
-        feat_edge_vert_avg[0,i] = np.mean(edges_prewitt_vertical)
-        feat_edge_hori_avg[0,i] = np.mean(edges_prewitt_horizontal)
+        edges_vertical = sobel_v(image1[:,:,i])
+        feat_edge_vert_avg[0,i] = np.mean(edges_vertical)
+        feat_edge_hori_avg[0,i] = np.mean(edges_horizontal)
         
     return np.append(feat_edge_vert_avg, feat_edge_hori_avg)
 
 def laplace_gaussian_edge_detection(image1):
     """
-    applies a basic vertical and horizontal edge detection filter and then takes the mean for each channel
+    applies a basic vertical and horizontal edge detection filter
+    return: sum of pixel intensity in edge image over each column and each row in each channel,
+            and mean and variance for each channel
+            dim = (16 + 16 + 2 ) * 3 = 102
     """
     nb_channels = image1.shape[2]
     feat_edges_laplace_gaussian = np.zeros((2*nb_channels))
@@ -158,8 +161,8 @@ def laplace_gaussian_edge_detection(image1):
     
     for i in range(nb_channels):
         edges_image = ndimage.gaussian_laplace(image1[:,:,i], sigma=1.5)
-        feat_road_vert = np.sum(edges_image,axis=0)/edges_image.shape[0]/255
-        feat_road_hori = np.sum(edges_image,axis=1)/edges_image.shape[1]/255
+        feat_road_vert = np.sum(edges_image,axis=0)/edges_image.shape[0]/255 # dim 16
+        feat_road_hori = np.sum(edges_image,axis=1)/edges_image.shape[1]/255 # dim 16
         feat_road_vert = feat_road_vert.reshape(1,feat_road_vert.shape[0])
         feat_road_hori = feat_road_hori.reshape(1,feat_road_hori.shape[0])
         sum_edges_col = np.append(sum_edges_col, feat_road_vert)
@@ -214,7 +217,8 @@ def get_gray_mask(img):
 
 def get_grey_features(mask):
     """
-    returns the proportion of gey/black pixels in each line (400) and in each column (400)
+    returns the proportion of gey/black pixels in each line (16) and in each column (16)
+    # dim = 16 + 16 = 32
     """
     feat_road_vert = np.sum(mask,axis=0)/mask.shape[0]/255
     feat_road_hori = np.sum(mask,axis=1)/mask.shape[1]/255
