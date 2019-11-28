@@ -9,6 +9,8 @@ from PIL import Image
 from skimage.filters import prewitt_h,prewitt_v
 from skimage.filters import sobel_h,sobel_v
 from scipy import ndimage, misc
+from skimage.color import rgb2gray
+
 
 
 # Helper functions
@@ -75,11 +77,11 @@ def make_img_overlay(img, predicted_img):
     return new_img
 
 def calculate_f1_score(actual, predictions):
-  
-    total_predicted_positives = predictions.sum()
-    total_actual_positives = predictions.sum()
-    true_positives = (actual*predictions).sum()
     
+    total_predicted_positives = predictions.sum()
+    total_actual_positives = actual.sum()
+    true_positives = (actual*predictions).sum()
+ 
     precision = true_positives/total_predicted_positives
     recall = true_positives/total_actual_positives
     
@@ -106,17 +108,22 @@ def extract_features_2d(img):
     return feat
 
 # Extract features for a given image, used at the end for visual comparison
-def extract_img_features(filename,patch_size):
+def extract_img_features(filename, patch_size):
     img = load_image(filename)
     img_patches = img_crop(img, patch_size, patch_size)
-    #X = np.asarray([ extract_features_2d(img_patches[i]) for i in range(len(img_patches))])
     X1 = np.asarray([ extract_features(img_patches[i]) for i in range(len(img_patches))]) # dim 6
-    X2 = np.asarray([ laplace_gaussian_edge_detection(img_patches[i]) for i in range(len(img_patches))]) # dim 3
-    X3 = np.asarray([ horizontal_and_vertical_edge_detection(img_patches[i]) for i in range(len(img_patches))]) # dim 6
-    X4 = np.asarray([ get_grey_features(get_gray_mask(img_patches[i])) for i in range(len(img_patches))]) # dim 2
-    X = np.concatenate((X1,X2,X3,X4),axis=1) # dim 13
-    X = feature_expansion(X,5) # dim = dim * degree
+    X2 = np.asarray([ laplace_gaussian_edge_detection(img_patches[i]) for i in range(len(img_patches))]) # dim 32
+    X3 = np.asarray([ horizontal_and_vertical_edge_detection(img_patches[i]) for i in range(len(img_patches))]) # dim 32
+    X4 = np.asarray([ get_grey_features(get_gray_mask(img_patches[i])) for i in range(len(img_patches))]) # dim 32
+    X5 = np.asarray([ threshold_eroded_img(img_patches[i]) for i in range(len(img_patches))]) # dim 32
+    X6 = np.asarray([ fd_hu_moments(img_patches[i]) for i in range(len(img_patches))]) # dim 7
+    X7 = np.asarray([ fd_haralick(img_patches[i]) for i in range(len(img_patches))]) # dim 13
+    X8 = np.asarray([ hog_features(img_patches[i]).ravel() for i in range(len(img_patches))]) # dim 16 * 16
+    print("stop")
+    X = np.concatenate((X1,X2,X3,X4,X6,X7,X8),axis=1) # dim 402
+    X = feature_interaction(X) # dim = dim**2
     X = add_offset(X) # dim = dim + 1
+    print(X.shape)
     return X
 
 def min_and_max_features(img):
@@ -132,51 +139,40 @@ def min_and_max_features(img):
 def horizontal_and_vertical_edge_detection(image1):
     """
     applies a the sobel vertical and horizontal edge detection filter and then takes the mean for each channel
-    dim = 2 * 3 = 6
+    dim = 32
     """
-    nb_channels = image1.shape[2]
-    feat_edge_vert_avg = np.zeros((1,nb_channels))
-    feat_edge_hori_avg = np.zeros((1,nb_channels))
+    image1 = rgb2gray(image1)
     
-    for i in range(nb_channels):
-        edges_horizontal = sobel_h(image1[:,:,i])
-        #calculating vertical edges using sobel kernel
-        edges_vertical = sobel_v(image1[:,:,i])
-        feat_edge_vert_avg[0,i] = np.mean(edges_vertical)
-        feat_edge_hori_avg[0,i] = np.mean(edges_horizontal)
-        
-    return np.append(feat_edge_vert_avg, feat_edge_hori_avg)
+    edges_horizontal = sobel_h(image1)
+    #calculating vertical edges using sobel kernel
+    edges_vertical = sobel_v(image1)
+    feat_road_vert = np.sum(edges_horizontal,axis=0)/edges_horizontal.shape[0]/255 # dim 16
+    feat_road_hori = np.sum(edges_vertical,axis=1)/edges_vertical.shape[1]/255 # dim 16
+    #peut etre ajouter moyenne
+    
+    #plt.imshow(edges_vertical)
+    #plt.show()
+    
+    return np.hstack((feat_road_vert, feat_road_hori))
 
 def laplace_gaussian_edge_detection(image1):
     """
     applies a basic vertical and horizontal edge detection filter
     return: sum of pixel intensity in edge image over each column and each row in each channel,
             and mean and variance for each channel
-            dim = (16 + 16 + 2 ) * 3 = 102
+            dim = (16 + 16 ) = 32
     """
-    nb_channels = image1.shape[2]
-    feat_edges_laplace_gaussian = np.zeros((2*nb_channels))
-    sum_edges_col = np.array([])
-    sum_edges_row = np.array([])
-    
-    for i in range(nb_channels):
-        edges_image = ndimage.gaussian_laplace(image1[:,:,i], sigma=1.5)
-        feat_road_vert = np.sum(edges_image,axis=0)/edges_image.shape[0]/255 # dim 16
-        feat_road_hori = np.sum(edges_image,axis=1)/edges_image.shape[1]/255 # dim 16
-        feat_road_vert = feat_road_vert.reshape(1,feat_road_vert.shape[0])
-        feat_road_hori = feat_road_hori.reshape(1,feat_road_hori.shape[0])
-        sum_edges_col = np.append(sum_edges_col, feat_road_vert)
-        sum_edges_row = np.append(sum_edges_row, feat_road_hori)
-        feat_edges_laplace_gaussian[i] = np.mean(edges_image)
-        feat_edges_laplace_gaussian[i+nb_channels] = np.var(edges_image)
-        #print(edges_image)
-        #plt.imshow(edges_image)
-        #plt.show()
-        #print(np.max(edges_image),np.min(edges_image),np.mean(edges_image))
-        #print(sum_edges_col.shape)
-    feat_edges_laplace_gaussian = feat_edges_laplace_gaussian.reshape(1,feat_edges_laplace_gaussian.shape[0])
-    #return np.append((sum_edges_col.ravel(),sum_edges_row.ravel(),feat_edges_laplace_gaussian))
-    return np.concatenate((sum_edges_col.ravel(),sum_edges_row.ravel(),np.squeeze(feat_edges_laplace_gaussian)),axis=0)
+    image1 = rgb2gray(image1)
+
+    edges_image = ndimage.gaussian_laplace(image1, sigma=1.5)
+    feat_road_vert = np.sum(edges_image,axis=0)/edges_image.shape[0]/255 # dim 16
+    feat_road_hori = np.sum(edges_image,axis=1)/edges_image.shape[1]/255 # dim 16
+    #feat_road_vert = feat_road_vert.reshape(1,feat_road_vert.shape[0])
+
+    #plt.imshow(edges_image)
+    #plt.show()
+
+    return np.hstack((feat_road_vert,feat_road_hori))
 
 def feature_expansion(features,degree):
     """
@@ -187,6 +183,20 @@ def feature_expansion(features,degree):
     for i in iter1:
         res = np.concatenate((res,features**(i)),axis=1)
         
+    return res
+
+def feature_interaction(features):
+    """
+    feature_expansion in the format X,X^2,..,X^degree (element-wise)
+    """
+    res = np.zeros((features.shape[0], features.shape[1]**2))
+    print(res.shape)
+    for i in range(features.shape[1]):
+        print(i)
+        for j in range(features.shape[1]):
+            res[:,i+j] = features[:,i] * features[:,j]
+       
+    print(res.shape)
     return res
 
 def add_offset(features):
