@@ -47,18 +47,51 @@ def find_mean_std(test_images):
 
     return mean/255 , std/255
 
-def calculate_all_results(net, prefix, compare=False ):
+def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False ):
+    """ Saves all results of the net on the test set in the drive  """
+    
+    net.eval()
+    with torch.no_grad():
+      satelite_images_path = prefix + 'test_set_images'
+      image_names = glob.glob(satelite_images_path + '/*/*.png')
+      test_images = list(map(Image.open, image_names))
+      transformX = transforms.Compose([
+        transforms.ToTensor(), # transform to range 0 1
+      ])
+
+      for i, image in enumerate(test_images):
+	      image = test_images[np.random.randint(len(test_images))]
+	      
+	      image = transforms.Resize((400,400))(image)
+	      image_batch = transformX(image)
+	      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
+	      output = net(image_batch)
+	      net_result = output[0].clone().detach().squeeze().cpu().numpy()
+	      net_result = transform_to_patch_format(net_result)
+	      net_result = net_result.astype("uint8")
+	      net_result = net_result.reshape((400,400))*255
+	      net_result = convert_1_to_3_channels(net_result)
+      
+
+	      if compare:
+	          net_result = Image.fromarray(np.hstack([image, net_result]))
+	      else:    
+	          net_result = Image.fromarray(net_result)
+
+	      net_result.save(path_to_results+"test_image_" + str(i) + ".png", "PNG")
+
+
+      
+
+def see_result_on_test_set(net, prefix, compare=False ):
     """ Calculates one random test images result and compares it to the actual image if required  """
     
     net.eval()
     with torch.no_grad():
       satelite_images_path = prefix + 'test_set_images'
       test_images = list(map(Image.open, glob.glob(satelite_images_path + '/*/*.png')))
-      # mean, std = find_mean_std(test_images)
-      # print(mean, std)
       transformX = transforms.Compose([
-        transforms.ToTensor(),
-        # transforms.Normalize(mean, std),
+        transforms.ToTensor(), # transform to range 0 1
       ])
 
       image = test_images[np.random.randint(len(test_images))]
