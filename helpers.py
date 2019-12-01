@@ -13,12 +13,11 @@ import random
 import torch.nn.functional as F
 from database import *
 from network import *
+import re
+import glob
 
 torch.set_default_tensor_type(torch.cuda.FloatTensor)
 torch.backends.cudnn.benchmark=True
-
-import glob
-
 
 def find_mean_std(test_images):
     """Finds mean and std of images (UNUSED and probably false too don't use) """
@@ -48,39 +47,79 @@ def find_mean_std(test_images):
     return mean/255 , std/255
 
 def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False ):
-    """ Saves all results of the net on the test set in the drive  """
+	""" Saves all results of the net on the test set in the drive  """
+
+	net.eval()
+	with torch.no_grad():
+		satelite_images_path = prefix + 'test_set_images'
+		image_names = glob.glob(satelite_images_path + '/*/*.png')
+		test_images = list(map(Image.open, image_names))
+		transformX = transforms.Compose([
+		transforms.ToTensor(), # transform to range 0 1
+		])
+
+		for i, image_test in enumerate(test_images):
+
+			image = transforms.Resize((400,400))(image_test)
+			image_batch = transformX(image)
+			image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
+			output = net(image_batch)
+			net_result = output[0].clone().detach().squeeze().cpu().numpy()
+			net_result = transform_to_patch_format(net_result)
+			net_result = net_result.astype("uint8")
+			net_result = net_result.reshape((400,400))*255
+			net_result = convert_1_to_3_channels(net_result)
+			net_result = Image.fromarray(net_result).resize((608,608))
+			net_result = np.array(net_result)
+			if compare:
+				net_result = Image.fromarray(np.hstack([image_test, net_result]))
+			else:    
+				net_result = Image.fromarray(net_result)
+
+			net_result.save(path_to_results+"test_image_" + str(int(re.search(r"\d+", image_names[i]).group(0))) + ".png", "PNG")
+
+def mask_to_submission_strings(image, img_number):
+    """Reads a single image and outputs the strings that should go into the submission file"""
+    patch_size = 16
+    for j in range(0, image.shape[1], patch_size):
+        for i in range(0, image.shape[0], patch_size):
+            patch = image[i:i + patch_size, j:j + patch_size]
+            label = patch_to_label(patch)
+            yield("{:03d}_{}_{},{}".format(img_number, j, i, label))
+
+
+def masks_to_submission(prefix, submission_filename, images, image_names):
+    """Converts images into a submission file"""
+    with open(prefix + 'results/' +submission_filename, 'w') as f:
+        f.write('id,prediction\n')
+        for i,im in enumerate(images[0:]):  
+        	image_nb = int(re.search(r"\d+", image_names[i]).group(0))
+            f.writelines('{}\n'.format(s) for s in mask_to_submission_strings(im, image_nb))
+
+
+def get_submission(net, prefix, submission_filename, threshold=0.5):
+  """Converts test set into a submission file"""
+  results = []
+  net.eval()
+  with torch.no_grad():
+    satelite_images_path = prefix + 'test_set_images'
+    image_names = glob.glob(satelite_images_path + '/*/*.png')
+    test_images = list(map(Image.open, image_names))
+    transformX = transforms.Compose([
+      transforms.ToTensor(), # transform to range 0 1
+    ])
+
+    for i, image in enumerate(test_images):
+
+      image = transforms.Resize((400,400))(image)
+      image_batch = transformX(image)
+      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
+      output = net(image_batch)
+      net_result = output[0].clone().detach().squeeze().cpu().numpy() > threshold 
+      net_result = Image.fromarray(net_result).resize((608,608))   
+      results.append(np.array(net_result))
     
-    net.eval()
-    with torch.no_grad():
-      satelite_images_path = prefix + 'test_set_images'
-      image_names = glob.glob(satelite_images_path + '/*/*.png')
-      test_images = list(map(Image.open, image_names))
-      transformX = transforms.Compose([
-        transforms.ToTensor(), # transform to range 0 1
-      ])
-
-      for i, image in enumerate(test_images):
-	      image = test_images[np.random.randint(len(test_images))]
-	      
-	      image = transforms.Resize((400,400))(image)
-	      image_batch = transformX(image)
-	      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
-	      output = net(image_batch)
-	      net_result = output[0].clone().detach().squeeze().cpu().numpy()
-	      net_result = transform_to_patch_format(net_result)
-	      net_result = net_result.astype("uint8")
-	      net_result = net_result.reshape((400,400))*255
-	      net_result = convert_1_to_3_channels(net_result)
-      
-
-	      if compare:
-	          net_result = Image.fromarray(np.hstack([image, net_result]))
-	      else:    
-	          net_result = Image.fromarray(net_result)
-
-	      net_result.save(path_to_results+"test_image_" + str(i) + ".png", "PNG")
-
-
+    masks_to_submission(prefix, submission_filename, results, image_names)
       
 
 def see_result_on_test_set(net, prefix, compare=False ):
@@ -102,7 +141,7 @@ def see_result_on_test_set(net, prefix, compare=False ):
       output = net(image_batch)
       net_result = output[0].clone().detach().squeeze().cpu().numpy() > 0.5
       net_result = transform_to_patch_format(net_result)
-      net_result = net_result.astype("uint8")
+      net_result = net_result.astype("uint8")   
       net_result = net_result.reshape((400,400))*255
       net_result = convert_1_to_3_channels(net_result)
       
