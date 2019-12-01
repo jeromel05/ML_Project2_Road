@@ -89,13 +89,18 @@ def mask_to_submission_strings(image, img_number):
 
 
 def masks_to_submission(prefix, submission_filename, images, image_names):
-    """Converts images into a submission file"""
-    with open(prefix + 'results/' +submission_filename, 'w') as f:
-        f.write('id,prediction\n')
-        for i,im in enumerate(images[0:]):  
-        	image_nb = int(re.search(r"\d+", image_names[i]).group(0))
-            f.writelines('{}\n'.format(s) for s in mask_to_submission_strings(im, image_nb))
+	"""Converts images into a submission file"""
+	with open(prefix + 'results/' +submission_filename, 'w') as f:
+		f.write('id,prediction\n')
+		# order images
+		image_in_order = np.zeros(np.array(images).shape)
+		for i,name in enumerate(image_names):  
+			image_nb = int(re.search(r"\d+", name).group(0))
+			image_in_order[image_nb - 1][:][:] = images[i]
 
+		for i in range(image_in_order.shape[0]):  
+			image = image_in_order[i][:][:]
+			f.writelines('{}\n'.format(s) for s in mask_to_submission_strings(image, i+1))
 
 def get_submission(net, prefix, submission_filename, threshold=0.5):
   """Converts test set into a submission file"""
