@@ -16,10 +16,11 @@ from network import *
 from helpers import *
 
 class Road_Segmentation_Database(torch.utils.data.Dataset):
-   """Road Segmentation database. Reads a h5 for performance. Caches the whole h5 and performs transformations on the images."""
-    def __init__(self, training, transform=None):
+    """Road Segmentation database. Reads a h5 for performance. Caches the whole h5 and performs transformations on the images."""
+    def __init__(self, thing, training, transform=None):
         super(Road_Segmentation_Database, self).__init__()
-        self.hf = h5py.File(h5_path, 'r')    
+        self.hf_path = thing
+        self.hf = h5py.File(self.hf_path, 'r')    
         self.training = training
         self.transform = transform
         # finds mean and std of datasets if needed (UNUSED instead we only divide by 255)
@@ -88,9 +89,9 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         
         return self.sizeTrain 
 
-def load_dataset(training, transform=None):
-    
-    dataset = Road_Segmentation_Database(training, transform)
+def load_dataset(path, training, transform=None):
+
+    dataset = Road_Segmentation_Database(path, training, transform)
 
     # create pytorch dataloader with batchsize of 8
     loader = torch.utils.data.DataLoader(

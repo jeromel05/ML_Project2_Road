@@ -47,7 +47,7 @@ def find_mean_std(test_images):
 
     return mean/255 , std/255
 
-def calculate_all_results(net, compare=False):
+def calculate_all_results(net, prefix, compare=False ):
     """ Calculates one random test images result and compares it to the actual image if required  """
     
     net.eval()
@@ -145,11 +145,11 @@ class CropResizeTransform:
         return x
 
 def tensor_to_PIL(tensor):
-   """Transforms tensor to PIL image. This multiplies the tensor by 255 and converts to RGB"""
-  return transforms.ToPILImage()(tensor).convert("RGB")
+	"""Transforms tensor to PIL image. This multiplies the tensor by 255 and converts to RGB"""
+	return transforms.ToPILImage()(tensor).convert("RGB")
 
 def patch_to_label(patch, foreground_threshold = 0.25 ):
-   """Decides if one patch should be considered a road or background"""
+    """Decides if one patch should be considered a road or background"""
     df = np.mean(patch)
     if df > foreground_threshold:
         return 1
@@ -202,11 +202,11 @@ def f1_loss(actual, prediction):
     
     return 1 - f1
 
-def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_train, min_train_f1 = 0.80, last_best_f1_test = 0.80):
+def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_train, min_train_f1 = 0.80, min_test_f1 = 0.80):
   """Saves model only if specific conditions are obtained:
       train f1 and test f1 needs to be atleast a minimum value and also beat the previous f1 test.
   """
-  if contender_f1_train > min_train_f1 and contender_f1_test > last_best_f1_test:
+  if contender_f1_train > min_train_f1 and contender_f1_test > np.min(last_best_f1_test,min_test_f1):
     # save net 
     torch.save(net.state_dict(), path_to_models+'/best_model.pt')
     # if model beats the last f1 test then return the new best test f1
