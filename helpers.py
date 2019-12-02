@@ -46,8 +46,18 @@ def find_mean_std(test_images):
 
     return mean/255 , std/255
 
-def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False ):
-	""" Saves all results of the net on the test set in the drive  """
+def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True ):
+	""" Saves all results of the net on the test set in the drive
+
+    Args:
+        net: net you want to create the images with
+        prefix: the prefix to the google colab 
+        path_to_results: where you want to save the results in google drive
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+        compare: if you want to save both the original image and the result next to each other or only the result if False
+        patch: if you want to see patches or a grayscale representation of probabilities 
+
+  """
 
 	net.eval()
 	with torch.no_grad():
@@ -65,9 +75,9 @@ def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False )
 			image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
 			output = net(image_batch)
 			net_result = output[0].clone().detach().squeeze().cpu().numpy()
-			net_result = transform_to_patch_format(net_result)
-			net_result = net_result.astype("uint8")
-			net_result = net_result.reshape((400,400))*255
+			net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
+			net_result = (net_result*255).astype("uint8")
+			net_result = net_result.reshape((400,400))
 			net_result = convert_1_to_3_channels(net_result)
 			net_result = Image.fromarray(net_result).resize((608,608))
 			net_result = np.array(net_result)
@@ -79,7 +89,13 @@ def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False )
 			net_result.save(path_to_results+"test_image_" + str(int(re.search(r"\d+", image_names[i]).group(0))) + ".png", "PNG")
 
 def mask_to_submission_strings(image, img_number):
-    """Reads a single image and outputs the strings that should go into the submission file"""
+    """Reads a single image and outputs the strings that should go into the submission file
+
+    Args:
+        image: one image to convert to string format
+        img_number: the corresponding number in the test set
+
+    """
     patch_size = 16
     for j in range(0, image.shape[1], patch_size):
         for i in range(0, image.shape[0], patch_size):
@@ -89,7 +105,15 @@ def mask_to_submission_strings(image, img_number):
 
 
 def masks_to_submission(prefix, submission_filename, images, image_names):
-	"""Converts images into a submission file"""
+	"""Converts images into a submission file
+
+    Args:
+        prefix: the prefix to the google colab 
+        submission_filename: the name of the submission file
+        images: all images you want to convert
+        image_names: all images name in the same order than their corresponding images you want to convert
+
+  """
 	with open(prefix + 'results/' +submission_filename, 'w') as f:
 		f.write('id,prediction\n')
 		# order images
@@ -103,12 +127,24 @@ def masks_to_submission(prefix, submission_filename, images, image_names):
 			f.writelines('{}\n'.format(s) for s in mask_to_submission_strings(image, i+1))
 
 def get_submission(net, prefix, submission_filename, threshold=0.5):
-  """Converts test set into a submission file"""
+  """Converts test set into a submission file in the results google drive folder
+
+    Args:
+        net: net you want to create the submission with
+        prefix: the prefix to the google colab 
+        submission_filename: the name of the submission file
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+  """
   results = []
   net.eval()
   with torch.no_grad():
+
+    # find all file names
     satelite_images_path = prefix + 'test_set_images'
     image_names = glob.glob(satelite_images_path + '/*/*.png')
+
+    # get all images
     test_images = list(map(Image.open, image_names))
     transformX = transforms.Compose([
       transforms.ToTensor(), # transform to range 0 1
@@ -116,6 +152,7 @@ def get_submission(net, prefix, submission_filename, threshold=0.5):
 
     for i, image in enumerate(test_images):
 
+      # images are 608*608 so we need to resize to fit network
       image = transforms.Resize((400,400))(image)
       image_batch = transformX(image)
       image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
@@ -127,8 +164,20 @@ def get_submission(net, prefix, submission_filename, threshold=0.5):
     masks_to_submission(prefix, submission_filename, results, image_names)
       
 
-def see_result_on_test_set(net, prefix, compare=False ):
-    """ Calculates one random test images result and compares it to the actual image if required  """
+def see_result_on_test_set(net, prefix, compare=False, threshold=0.5 ):
+    """ Calculates one random test images result and compares it to the actual image if required
+
+    Args:
+        net: net you want to create the images with
+        prefix: the prefix to the google colab 
+        path_to_results: where you want to save the results in google drive
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+        compare: if you want to save both the original image and the result next to each other or only the result if False
+
+    Returns:
+        the PIL image of either the result or the result with its base input
+
+    """
     
     net.eval()
     with torch.no_grad():
@@ -144,7 +193,7 @@ def see_result_on_test_set(net, prefix, compare=False ):
       image_batch = transformX(image)
       image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
       output = net(image_batch)
-      net_result = output[0].clone().detach().squeeze().cpu().numpy() > 0.5
+      net_result = output[0].clone().detach().squeeze().cpu().numpy() >threshold
       net_result = transform_to_patch_format(net_result)
       net_result = net_result.astype("uint8")   
       net_result = net_result.reshape((400,400))*255
@@ -283,7 +332,7 @@ def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_t
   """Saves model only if specific conditions are obtained:
       train f1 and test f1 needs to be atleast a minimum value and also beat the previous f1 test.
   """
-  if contender_f1_train > min_train_f1 and contender_f1_test > np.min(last_best_f1_test,min_test_f1):
+  if contender_f1_train > min_train_f1 and contender_f1_test > last_best_f1_test and contender_f1_test > min_test_f1:
     # save net 
     torch.save(net.state_dict(), path_to_models+'/best_model.pt')
     # if model beats the last f1 test then return the new best test f1
@@ -297,7 +346,7 @@ def see_result(loader, net, threshold=0.5):
 	Args:
         loader: pytorch loader to test the image of
         net: network you want to test
-		threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+		    threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
 
     Returns:
         The image comparing all
