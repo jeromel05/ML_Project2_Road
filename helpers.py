@@ -328,7 +328,7 @@ def f1_loss(actual, prediction):
     
     return 1 - f1
 
-def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_train, min_train_f1 = 0.80, min_test_f1 = 0.80):
+def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_train, path_to_models, min_train_f1 = 0.80, min_test_f1 = 0.80):
   """Saves model only if specific conditions are obtained:
       train f1 and test f1 needs to be atleast a minimum value and also beat the previous f1 test.
   """
