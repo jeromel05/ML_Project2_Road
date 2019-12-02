@@ -275,22 +275,40 @@ def tensor_to_PIL(tensor):
 	return transforms.ToPILImage()(tensor).convert("RGB")
 
 def patch_to_label(patch, foreground_threshold = 0.25 ):
-    """Decides if one patch should be considered a road or background"""
+    """Decides if one patch should be considered a road or background
+
+    Args:
+        patch: one patch to predict. Can be probabilities or strictly 1 and 0 values
+        foreground_threshold: threshold of which a patch's mean is decided to be a road or not
+
+    Returns:
+        The result patched with the threshold provided
+
+    """  
     df = np.mean(patch)
     if df > foreground_threshold:
         return 1
     else:
         return 0
 
-def transform_to_patch_format(mask):
-    """Reads a single mask and converts image to patch image with all patches to their corresponding value"""
+def transform_to_patch_format(mask, foreground_threshold = 0.25):
+    """Reads a single mask and converts image to patch image with all patches to their corresponding value
+
+    Args:
+        mask: result of the network. Can be probabilities or strictly 1 and 0 values
+        foreground_threshold: threshold of which a patch's mean is decided to be a road or not
+
+    Returns:
+        The result patched with the threshold provided
+
+    """    
     im = mask
     patch_size = 16
     for j in range(0, im.shape[1], patch_size):
         for i in range(0, im.shape[0], patch_size):
             patch = im[i:i + patch_size, j:j + patch_size]
             # is a road of not?
-            label = patch_to_label(patch)
+            label = patch_to_label(patch, foreground_threshold)
             # convert whole patch to be the same as label
             im[i:i + patch_size, j:j + patch_size] = np.ones_like(patch) if label else np.zeros_like(patch)
     return im
@@ -298,7 +316,16 @@ def transform_to_patch_format(mask):
 # eps to remove most nan values because of divide by 0
 
 def f1(actual, prediction):
-    """Gives the f1 score of the network results. """
+    """Gives the f1 score of the network results.
+
+    Args:
+        actual: the groundtruth of the input 
+        prediction: the result the network obtained. Should be a binary image
+
+    Returns:
+        The f1 score for this prediction
+
+    """    
     eps=1e-10
     tp = torch.sum(actual*prediction)
     total_predicted_positives = torch.sum(prediction)
@@ -313,7 +340,16 @@ def f1(actual, prediction):
     return f1
 
 def f1_loss(actual, prediction):
-    """Implements f1_loss for pytorch. All long as only pytorch functions are used then the pytorch implements backpropagation by itself."""
+    """Implements f1_loss for pytorch. As long as only pytorch functions are used then the pytorch implements backpropagation by itself.
+
+    Args:
+        actual: the groundtruth of the input 
+        prediction: the result the network obtained. Should be an image with probabilities for the roads
+
+    Returns:
+        The f1 loss for this prediction
+
+    """
     eps=1e-10
     tp = torch.sum(actual*prediction)
     total_predicted_positives = torch.sum(prediction)
@@ -331,7 +367,17 @@ def f1_loss(actual, prediction):
 def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_train, path_to_models, min_train_f1 = 0.80, min_test_f1 = 0.80):
   """Saves model only if specific conditions are obtained:
       train f1 and test f1 needs to be atleast a minimum value and also beat the previous f1 test.
-  """
+
+    Args:
+        net: iteration of the network you want to save
+        last_best_f1_test: the best f1 score you got for this model
+        contender_f1_test: the f1 score of the test set you obtained on this epoch
+        contender_f1_train: the f1 score of the train set you obtained on this epoch
+        path_to_models: path in the drive where you 
+        min_train_f1: constraint on the minimum value you want the network to score on the training set
+        min_test_f1: constraint on the minimum value you want the network to score on the training set
+
+    """
   if contender_f1_train > min_train_f1 and contender_f1_test > last_best_f1_test and contender_f1_test > min_test_f1:
     # save net 
     torch.save(net.state_dict(), path_to_models+'/best_model.pt')
@@ -382,7 +428,17 @@ def see_result(loader, net, threshold=0.5):
 
 from scipy.ndimage import rotate
 
-def multi_decision(net, np_image, threshold):
+def multi_decision(net, np_image, threshold=0.5):
+  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
+  
+    Args:
+        net: the network you use for the prediction
+        np_image: image you want to test
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+    Returns:
+        four decisions computed from the four rotations of the image by the network in the correct orientation
+  """
   np_image = np.moveaxis(np_image, 0, 2)
   rotations = []
   for i in range(4):
@@ -401,7 +457,25 @@ def multi_decision(net, np_image, threshold):
 
   return rotations
 
+def decide(net, np_image, decider,threshold=0.5):
+  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
+  
+    Args:
+        net: the network you use for the prediction
+        np_image: image you want to test
+        decider: 
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+    Returns:
+        decision for this image
+  """
+  ## TODO: finish
+
 def decide_or_logic(list_of_decisions):
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
   decision = np.zeros(list_of_decisions[0].shape)
   for vote in list_of_decisions:
     decision = decision + vote
@@ -409,14 +483,20 @@ def decide_or_logic(list_of_decisions):
   return decision >= 1
 
 def decide_and_logic(list_of_decisions):
-  decision = np.ones(list_of_decisions[0].shape)
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """  decision = np.ones(list_of_decisions[0].shape)
   for vote in list_of_decisions:
     decision = decision * vote
 
   return decision == 1
 
 def decide_majority_logic(list_of_decisions):
-  decision = np.zeros(list_of_decisions[0].shape)
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """  decision = np.zeros(list_of_decisions[0].shape)
   for vote in list_of_decisions:
     decision = decision + vote
 
