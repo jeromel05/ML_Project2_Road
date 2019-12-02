@@ -46,9 +46,28 @@ def find_mean_std(test_images):
 
     return mean/255 , std/255
 
-def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False ):
-	""" Saves all results of the net on the test set in the drive  """
+def get_padding(kernel_size = 3, dilation = 1):
+  """ Get the required padding to be applied in order to extend the image for convolution.
 
+    Args:
+      kernel_size: the size of the applied kernel. Should be odd!
+      dilation: the dilation factor applied to the kernel. Must be int!
+  """
+  return (kernel_size-1)//2 * dilation
+
+
+def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True ):
+	""" Saves all results of the net on the test set in the drive
+
+    Args:
+        net: net you want to create the images with
+        prefix: the prefix to the google colab 
+        path_to_results: where you want to save the results in google drive
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+        compare: if you want to save both the original image and the result next to each other or only the result if False
+        patch: if you want to see patches or a grayscale representation of probabilities 
+
+  """
 	net.eval()
 	with torch.no_grad():
 		satelite_images_path = prefix + 'test_set_images'
