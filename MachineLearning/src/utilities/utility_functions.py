@@ -1,80 +1,19 @@
 # -*- coding: utf-8 -*-
-"""some helper functions for project 2."""
+"""functions for feature extraction"""
 import csv
+import mahotas
+import cv2
 import numpy as np
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
-import os,sys
+from skimage.feature import hog
+
 from PIL import Image
 from skimage.filters import prewitt_h,prewitt_v
 from skimage.filters import sobel_h,sobel_v
 from scipy import ndimage, misc
 from skimage.color import rgb2gray
-
-
-
-# Helper functions
-
-def load_image(infilename):
-    data = mpimg.imread(infilename)
-    return data
-
-def img_float_to_uint8(img):
-    rimg = img - np.min(img)
-    rimg = (rimg / np.max(rimg) * 255).round().astype(np.uint8)
-    return rimg
-
-# Concatenate an image and its groundtruth
-def concatenate_images(img, gt_img):
-    nChannels = len(gt_img.shape)
-    w = gt_img.shape[0]
-    h = gt_img.shape[1]
-    if nChannels == 3:
-        cimg = np.concatenate((img, gt_img), axis=1)
-    else:
-        gt_img_3c = np.zeros((w, h, 3), dtype=np.uint8)
-        gt_img8 = img_float_to_uint8(gt_img)          
-        gt_img_3c[:,:,0] = gt_img8
-        gt_img_3c[:,:,1] = gt_img8
-        gt_img_3c[:,:,2] = gt_img8
-        img8 = img_float_to_uint8(img)
-        cimg = np.concatenate((img8, gt_img_3c), axis=1)
-    return cimg
-
-def img_crop(im, w, h):
-    list_patches = []
-    imgwidth = im.shape[0]
-    imgheight = im.shape[1]
-    is_2d = len(im.shape) < 3
-    for i in range(0,imgheight,h):
-        for j in range(0,imgwidth,w):
-            if is_2d:
-                im_patch = im[j:j+w, i:i+h]
-            else:
-                im_patch = im[j:j+w, i:i+h, :]
-            list_patches.append(im_patch)
-    return list_patches
-
-def label_to_img(imgwidth, imgheight, w, h, labels):
-    im = np.zeros([imgwidth, imgheight])
-    idx = 0
-    for i in range(0,imgheight,h):
-        for j in range(0,imgwidth,w):
-            im[j:j+w, i:i+h] = labels[idx]
-            idx = idx + 1
-    return im
-
-def make_img_overlay(img, predicted_img):
-    w = img.shape[0]
-    h = img.shape[1]
-    color_mask = np.zeros((w, h, 3), dtype=np.uint8)
-    color_mask[:,:,0] = predicted_img*255
-
-    img8 = img_float_to_uint8(img)
-    background = Image.fromarray(img8, 'RGB').convert("RGBA")
-    overlay = Image.fromarray(color_mask, 'RGB').convert("RGBA")
-    new_img = Image.blend(background, overlay, 0.2)
-    return new_img
+from helper_functions import *
 
 def calculate_f1_score(actual, predictions):
     
@@ -86,13 +25,11 @@ def calculate_f1_score(actual, predictions):
     recall = true_positives/total_actual_positives
     
     f1_score = 2 * ( precision * recall )/( precision + recall )
-    
     return f1_score
-    
+   
 
 #DEFINITION OF FEATURES
-# Extract 6-dimensional features consisting of average RGB color as well as variance
-#inutile pck on a normalisé avant
+#Extract 6-dimensional features consisting of average RGB color as well as variance
 def extract_features(img):
     #shape 1x3 + 1x3 = 1x6
     feat_m = np.mean(img, axis=(0,1))
@@ -126,6 +63,70 @@ def extract_img_features(filename, patch_size):
     print(X.shape)
     return X
 
+def fd_hu_moments(image):
+    image = img_float_to_uint8(image)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    feature = cv2.HuMoments(cv2.moments(image)).flatten()
+    return feature
+
+def fd_haralick(image):    # convert the image to grayscale
+    image = img_float_to_uint8(image)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # compute the haralick texture feature vector
+    haralick = mahotas.features.haralick(gray).mean(axis=0)
+    return haralick
+
+def hog_features(image):
+    #histogram of oriented gradients
+    grey_bombus = rgb2gray(image)
+    hog_features, hog_image = hog(grey_bombus,
+                              visualize=True,
+                              block_norm='L2-Hys',
+                              pixels_per_cell=(5,5))
+        
+    #plt.imshow(hog_image, cmap=cm.gray)
+    return hog_image
+    
+def threshold_eroded_img(img):
+    img = rgb2gray(img)
+    #plt.imshow(img)
+    #plt.show()
+    img = img_float_to_uint8(img)
+    ret,thresh1 = cv2.threshold(img,70,255,cv2.THRESH_BINARY)
+    #plt.imshow(thresh1)
+    #plt.show()
+    kernel = np.ones((3,3),np.uint8)
+    erosion = cv2.erode(thresh1,kernel,iterations = 1)
+    dilated = cv2.dilate(erosion,kernel,iterations = 1)
+    #plt.imshow(dilated)
+    #plt.show()
+    
+    #find all your connected components (white blobs in your image)
+    nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(dilated, connectivity=8)
+    sizes = stats[1:, -1]; nb_components = nb_components - 1
+
+    #here, it's a fixed value, but you can set it as you want, eg the mean of the sizes or whatever
+    min_size = 1300  
+
+    #your answer image
+    img2 = np.zeros((output.shape))
+    #for every component in the image, you keep it only if it's above min_size
+    for i in range(0, nb_components):
+        if sizes[i] >= min_size:
+            img2[output == i + 1] = 255
+    #plt.imshow(img2)
+    #plt.show()
+        
+    feat_vert = np.sum(erosion, axis=1) / 255 / erosion.shape[1]
+    feat_hori = np.sum(erosion, axis=0) / 255 / erosion.shape[0]
+    
+    feat_vert[feat_vert < 0.35] = 0
+    feat_hori[feat_hori < 0.35] = 0
+    #plt.bar(range(erosion.shape[0]), feat_hori)
+    #plt.bar(range(erosion.shape[0]), feat_vert)
+    #plt.show()
+    return np.hstack((feat_vert,feat_hori))
+
 def min_and_max_features(img):
     """
     returns the min and max rgb value for each channel
@@ -146,10 +147,12 @@ def horizontal_and_vertical_edge_detection(image1):
     edges_horizontal = sobel_h(image1)
     #calculating vertical edges using sobel kernel
     edges_vertical = sobel_v(image1)
+    
+    #ajouter np.sum(abs(sobel_x) + abs(sobel_y))
     feat_road_vert = np.sum(edges_horizontal,axis=0)/edges_horizontal.shape[0]/255 # dim 16
     feat_road_hori = np.sum(edges_vertical,axis=1)/edges_vertical.shape[1]/255 # dim 16
-    #peut etre ajouter moyenne
     
+    #peut etre ajouter moyenne
     #plt.imshow(edges_vertical)
     #plt.show()
     
@@ -174,41 +177,7 @@ def laplace_gaussian_edge_detection(image1):
 
     return np.hstack((feat_road_vert,feat_road_hori))
 
-def feature_expansion(features,degree):
-    """
-    feature_expansion in the format X,X^2,..,X^degree (element-wise)
-    """
-    res = features
-    iter1 = np.arange(2,degree+1,1)
-    for i in iter1:
-        res = np.concatenate((res,features**(i)),axis=1)
-        
-    return res
-
-def feature_interaction(features):
-    """
-    feature_expansion in the format X,X^2,..,X^degree (element-wise)
-    """
-    res = np.zeros((features.shape[0], features.shape[1]**2))
-    print(res.shape)
-    for i in range(features.shape[1]):
-        print(i)
-        for j in range(features.shape[1]):
-            res[:,i+j] = features[:,i] * features[:,j]
-       
-    print(res.shape)
-    return res
-
-def add_offset(features):
-    """
-    adds a first column of ones to the features X
-    """
-    offset = np.ones((features.shape[0],1))
-    return np.concatenate((offset,features),axis=1)
-
 #rem important to condider to 2 formats : 0-1 and 0-255
-import cv2
-
 def get_gray_mask(img):
     img = img_float_to_uint8(img)
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -216,6 +185,8 @@ def get_gray_mask(img):
     upper = np.array([179, 50, 255])
     mask_gray = cv2.inRange(hsv, lower, upper)
     img_res = cv2.bitwise_and(img, img, mask = mask_gray)
+    #transform into hue (hsv)
+    
     #plt.imshow(mask_gray)
     #plt.show()
     #plt.imshow(img)
