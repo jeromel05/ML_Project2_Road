@@ -46,6 +46,17 @@ def find_mean_std(test_images):
 
     return mean/255 , std/255
 
+
+def get_padding(kernel_size = 3, dilation = 1):
+  """ Get the required padding to be applied in order to extend the image for convolution.
+
+    Args:
+      kernel_size: the size of the applied kernel. Should be odd!
+      dilation: the dilation factor applied to the kernel. Must be int!
+  """
+  return (kernel_size-1)//2 * dilation
+
+
 def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True ):
 	""" Saves all results of the net on the test set in the drive
 
