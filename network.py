@@ -43,6 +43,23 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.double_conv(x)
 
+class DoubleConv(nn.Module):
+    """(reflection padding => convolution => [BN] => ReLU)"""
+
+    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1):
+        super().__init__()
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size, padding),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size, padding),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        return self.double_conv(x)
+
 class ConvReflection(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
@@ -158,119 +175,11 @@ class EncodeDecodeNet(nn.Module):
 
       super(UNet, self).__init__()
       self.network = nn.Sequential(
-            # start kernel size 5 for better processing of original image
-            ConvReflection()
+            ConvReflection(3, 8, 11, 5),
+            Down(8, 8),
+            DoubleConv(8, 8),
+            DoubleConv(8, 16),
 
-            # downsize for feature extraction
-            nn.MaxPool2d(2),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(8), 
-    
-            # convolution
-            nn.Conv2d(8, 8, 3, padding=1),  
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(8), 
-
-            # convolution
-            nn.Conv2d(8, 16, 3, padding=1), 
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(16), 
-
-            # convolution
-            nn.Conv2d(16, 16, 3, stride=1, padding=1), 
-
-            # downsize for feature extraction 
-            nn.MaxPool2d(2),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(16), 
-
-            # convolution
-            nn.Conv2d(16, 16, 3, stride=1, padding=1),
-
-            # downsize for feature extraction  
-            nn.MaxPool2d(2),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(16), 
-
-            # convolution
-            nn.Conv2d(16, 32, 3, padding=1),  
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(32), 
-
-            # convolution  
-            nn.Conv2d(32, 32, 3, stride=1, padding=1),
-            
-            # downsize for feature extraction  
-            nn.MaxPool2d(2),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(32), 
-
-            # at min size for features find seperation with several convolutions
-            nn.Conv2d(32, 32, 3, stride=1, padding=1),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(32), 
-            nn.Conv2d(32, 32, 3, stride=1, padding=1),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(32), 
-            nn.Conv2d(32, 32, 3, stride=1, padding=1),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(32), 
-            nn.Conv2d(32, 32, 3, stride=1, padding=1),
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(32), 
-
-            # upsample using nearest value to go back to original size progressively
-            nn.Upsample(scale_factor=2, mode='nearest'),
-            
-            # convolution
-            nn.Conv2d(32, 32, 3, padding=1),  
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(32), 
-
-            # convolution
-            nn.Conv2d(32, 32, 3, padding=1),  
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(32), 
-    
-            # upsample using nearest value to go back to original size progressively
-            nn.Upsample(scale_factor=2, mode='nearest'),
-            
-            # convolution
-            nn.Conv2d(32, 16, 3, padding=1),  
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(16),
-
-            # upsample using nearest value to go back to original size progressively
-            nn.Upsample(scale_factor=2, mode='nearest'),
-
-            # convolution
-            nn.Conv2d(16, 16, 3, padding=1),  
-            nn.ReLU(True),
-            nn.Dropout(0.2),
-            nn.BatchNorm2d(16), 
-    
-            # upsample using nearest value to go back to original size progressively
-            nn.Upsample(scale_factor=2, mode='nearest'),
-            
-            # convolution with kernel size 1 for weight rescaling
-            nn.Conv2d(16, 1, 1, padding=0),
-
-            # end with sigmoid  
-            nn.Sigmoid(),
       )
 
     def forward(self, x):
