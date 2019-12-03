@@ -25,6 +25,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+def get_padding(kernel_size = 3, dilation = 1):
+  """ Get the required padding to be applied in order to extend the image for convolution.
+
+    Args:
+      kernel_size: the size of the applied kernel. Should be odd!
+      dilation: the dilation factor applied to the kernel. Must be int!
+  """
+  return (kernel_size-1)//2 * dilation
 
 class DoubleConv(nn.Module):
     """(reflection padding => convolution => [BN] => ReLU)"""
@@ -90,7 +98,7 @@ class Down(nn.Module):
         return self.maxpool_conv(x)
 
 
-class UpUnet(nn.Module):
+class UpUNet(nn.Module):
     """Upscaling then double conv"""
 
     def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, bilinear=True):
@@ -120,17 +128,17 @@ class UpUnet(nn.Module):
 
 
 class OutConv(nn.Module):
-    def __init__(self, in_channels, out_channels, sigmoid=False ):
+    def __init__(self, in_channels, out_channels, sigmoid=True ):
         super(OutConv, self).__init__()
         self.sigmoid = sigmoid
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
-        if(self.sigmoid):
+        if(!self.sigmoid):
 
             return self.conv(x)
         else:
-            return nn.Sigmoid(self.conv(x))
+            return nn.Sigmoid()(self.conv(x))
 
 
 #cell content is taken and adapted from https://github.com/milesial/Pytorch-UNet
