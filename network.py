@@ -134,7 +134,7 @@ class OutConv(nn.Module):
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
-        if(!self.sigmoid):
+        if(not self.sigmoid):
 
             return self.conv(x)
         else:
