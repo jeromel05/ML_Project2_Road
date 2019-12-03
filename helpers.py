@@ -484,6 +484,14 @@ def decide(net, np_image, decider,threshold=0.5):
   return decider(list_of_decisions)
 
 
+def decide_simple(list_of_decisions):
+  """Return the decision of the reference image (without rotation)
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+
+  return list_of_decisions[0]
+
 def decide_or_logic(list_of_decisions):
   """Decides with a list of decisions for each pixel vote what the pixel should be
     Args:
