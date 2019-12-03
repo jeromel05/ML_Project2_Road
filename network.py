@@ -87,7 +87,7 @@ class UpUnet(nn.Module):
 
         self.conv = DoubleConv(in_channels, out_channels, kernel_size, padding)
 
-      def forward(self, x1, x2):
+    def forward(self, x1, x2):
         x1 = self.up(x1)
         # input is CHW
         diffY = x2.size()[2] - x1.size()[2]
@@ -109,10 +109,10 @@ class OutConv(nn.Module):
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
-      if(self.sigmoid):
+        if(self.sigmoid):
 
             return self.conv(x)
-      else:
+        else:
             return nn.Sigmoid(self.conv(x))
 
 
@@ -159,7 +159,7 @@ class EncodeDecodeNet(nn.Module):
       super(UNet, self).__init__()
       self.network = nn.Sequential(
             # start kernel size 5 for better processing of original image
-            nn.Conv2d(3, 8, 5, stride=1, padding=2), 
+            ConvReflection()
 
             # downsize for feature extraction
             nn.MaxPool2d(2),

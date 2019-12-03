@@ -463,13 +463,15 @@ def decide(net, np_image, decider,threshold=0.5):
     Args:
         net: the network you use for the prediction
         np_image: image you want to test
-        decider: 
+        decider: decide logic function needs to return an image and input a list of decisions
         threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
 
     Returns:
         decision for this image
   """
-  ## TODO: finish
+  list_of_decisions = multi_decision(net, np_image, threshold)
+  return decider(list_of_decisions)
+
 
 def decide_or_logic(list_of_decisions):
   """Decides with a list of decisions for each pixel vote what the pixel should be
@@ -486,7 +488,8 @@ def decide_and_logic(list_of_decisions):
   """Decides with a list of decisions for each pixel vote what the pixel should be
     Args:
       list_of_decisions: all the decisions the network has provided
-  """  decision = np.ones(list_of_decisions[0].shape)
+  """
+  decision = np.ones(list_of_decisions[0].shape)
   for vote in list_of_decisions:
     decision = decision * vote
 
@@ -496,7 +499,8 @@ def decide_majority_logic(list_of_decisions):
   """Decides with a list of decisions for each pixel vote what the pixel should be
     Args:
       list_of_decisions: all the decisions the network has provided
-  """  decision = np.zeros(list_of_decisions[0].shape)
+  """
+  decision = np.zeros(list_of_decisions[0].shape)
   for vote in list_of_decisions:
     decision = decision + vote
 
