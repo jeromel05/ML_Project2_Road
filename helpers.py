@@ -58,46 +58,47 @@ def get_padding(kernel_size = 3, dilation = 1):
 
 
 def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True ):
-	""" Saves all results of the net on the test set in the drive
+  """ Saves all results of the net on the test set in the drive
 
     Args:
-        net: net you want to create the images with
-        prefix: the prefix to the google colab 
-        path_to_results: where you want to save the results in google drive
-        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
-        compare: if you want to save both the original image and the result next to each other or only the result if False
-        patch: if you want to see patches or a grayscale representation of probabilities 
+      net: net you want to create the images with
+      prefix: the prefix to the google colab 
+      path_to_results: where you want to save the results in google drive
+      threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+      compare: if you want to save both the original image and the result next to each other or only the result if False
+      patch: if you want to see patches or a grayscale representation of probabilities 
 
   """
+  net.eval()
+  with torch.no_grad():
+    satelite_images_path = prefix + 'test_set_images'
+    image_names = glob.glob(satelite_images_path + '/*/*.png')
+    test_images = list(map(Image.open, image_names))
+    transformX = transforms.Compose([
+    transforms.ToTensor(), # transform to range 0 1
+    ])
 
-	net.eval()
-	with torch.no_grad():
-		satelite_images_path = prefix + 'test_set_images'
-		image_names = glob.glob(satelite_images_path + '/*/*.png')
-		test_images = list(map(Image.open, image_names))
-		transformX = transforms.Compose([
-		transforms.ToTensor(), # transform to range 0 1
-		])
+    for i, image_test in enumerate(test_images):
 
-		for i, image_test in enumerate(test_images):
+      image = transforms.Resize((400,400))(image_test)
+      image_batch = transformX(image)
+      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
+      output = net(image_batch)
+      net_result = nn.Sigmoid()(output) if threshold == 0 else output
+      net_result = net_result[0].clone().detach().squeeze().cpu().numpy()
+      net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
+      net_result = (net_result*255).astype("uint8")
+      net_result = net_result.reshape((400,400))
+      net_result = convert_1_to_3_channels(net_result)
+      net_result = Image.fromarray(net_result).resize((608,608))
+      net_result = np.array(net_result)
+      if compare:
+        net_result = Image.fromarray(np.hstack([image_test, net_result]))
+      else:    
+        net_result = Image.fromarray(net_result)
 
-			image = transforms.Resize((400,400))(image_test)
-			image_batch = transformX(image)
-			image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
-			output = net(image_batch)
-			net_result = output[0].clone().detach().squeeze().cpu().numpy()
-			net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
-			net_result = (net_result*255).astype("uint8")
-			net_result = net_result.reshape((400,400))
-			net_result = convert_1_to_3_channels(net_result)
-			net_result = Image.fromarray(net_result).resize((608,608))
-			net_result = np.array(net_result)
-			if compare:
-				net_result = Image.fromarray(np.hstack([image_test, net_result]))
-			else:    
-				net_result = Image.fromarray(net_result)
+      net_result.save(path_to_results+"test_image_" + str(int(re.search(r"\d+", image_names[i]).group(0))) + ".png", "PNG")
 
-			net_result.save(path_to_results+"test_image_" + str(int(re.search(r"\d+", image_names[i]).group(0))) + ".png", "PNG")
 
 def mask_to_submission_strings(image, img_number):
     """Reads a single image and outputs the strings that should go into the submission file
@@ -467,6 +468,18 @@ def multi_decision(net, np_image, threshold=0.5):
     rotations[i] = np.array(TF.rotate(transforms.ToPILImage()(rotations[i]).convert("L"), -i*90))>128
 
   return rotations
+
+def append_channel(image_tensor, channel_tensor):
+  """Appends a channel to an image
+    Args:
+        image_tensor: tensor of the image 3 400 400
+        channel: the tensor of the channel you want to append 1 400 400
+
+    Returns:
+        the image with the appended channel 4 400 400
+  """
+  # now we can stack
+  return torch.cat([image_tensor, channel_tensor], dim=0)  # 4 400 400
 
 def decide(net, np_image, decider,threshold=0.5):
   """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.

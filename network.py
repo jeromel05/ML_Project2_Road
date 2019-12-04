@@ -145,7 +145,7 @@ import torch.nn.functional as F
 
 
 class UNet(nn.Module):
-    def __init__(self, n_channels=3, n_classes=1, bilinear=True):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=True, sigmoid=False):
         super(UNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -160,10 +160,43 @@ class UNet(nn.Module):
         self.up2 = UpUNet(512, 128, bilinear)
         self.up3 = UpUNet(256, 64, bilinear)
         self.up4 = UpUNet(128, 64, bilinear)
-        self.outc = OutConv(64, n_classes)
+        self.outc = OutConv(64, n_classes, sigmoid)
 
     def forward(self, x):
         x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+        logits = self.outc(x)
+        return logits
+
+class ReflectionUNet(nn.Module):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=True):
+        super(ReflectionUNet, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+
+        self.image = ConvReflection(n_channels,64)
+        self.inc = DoubleConv(64, 64)
+        self.down1 = Down(64, 128)
+        self.down2 = Down(128, 256)
+        self.down3 = Down(256, 512)
+        self.down4 = Down(512, 512)
+        self.up1 = UpUNet(1024, 256, bilinear)
+        self.up2 = UpUNet(512, 128, bilinear)
+        self.up3 = UpUNet(256, 64, bilinear)
+        self.up4 = UpUNet(128, 64, bilinear)
+        self.outc = OutConv(64, n_classes)
+
+    def forward(self, x):
+        x0 = self.image(x)
+        x1 = self.inc(x0)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
@@ -193,13 +226,14 @@ class EncodeDecodeNet(nn.Module):
 
 # create network
 class Net(nn.Module):
-    def __init__(self):
+    def __init__(self, sigmoid=True, n_channels=3):
         super(Net, self).__init__()
+        self.sigmoid = sigmoid
 
 
         self.network = nn.Sequential(
             # start kernel size 5 for better processing of original image
-            nn.Conv2d(3, 8, 5, stride=1, padding=2), 
+            nn.Conv2d(n_channels, 8, 5, stride=1, padding=2), 
 
             # downsize for feature extraction
             nn.MaxPool2d(2),
@@ -309,10 +343,10 @@ class Net(nn.Module):
             # convolution with kernel size 1 for weight rescaling
             nn.Conv2d(16, 1, 1, padding=0),
 
-            # end with sigmoid  
-            nn.Sigmoid(),
+
         )
 
     def forward(self, x):
+        # end with sigmoid if needed
         x = self.network(x)
-        return x
+        return nn.Sigmoid()( x ) if self.sigmoid else x 

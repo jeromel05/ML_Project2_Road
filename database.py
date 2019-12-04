@@ -42,21 +42,19 @@ class CropResizeTransform:
 
 class Road_Segmentation_Database(torch.utils.data.Dataset):
     """Road Segmentation database. Reads a h5 for performance. Caches the whole h5 and performs transformations on the images."""
-    def __init__(self, thing, training, transform=None):
+    def __init__(self, thing, training, frei_chen=False):
         super(Road_Segmentation_Database, self).__init__()
         self.hf_path = thing
         self.hf = h5py.File(self.hf_path, 'r')    
         self.training = training
-        self.transform = transform
-        # finds mean and std of datasets if needed (UNUSED instead we only divide by 255)
+        self.frei_chen = frei_chen
+
         if self.training:
             self.sizeTrain = len(self.hf['train'])
-            self.mean = self.hf['train_mean'][0]/255
-            self.std = self.hf['train_std'][0]/255
+
         else:
             self.sizeTrain = len(self.hf['test'])
-            self.mean = self.hf['test_mean'][0]/255
-            self.std = self.hf['test_std'][0]/255
+
 
     def __getitem__(self, index):
     
@@ -66,13 +64,16 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         if self.training:
             imgX = hfFile['train'][index, ...]
             imgY = hfFile['train_groundtruth'][index, ...]
+            imgFC = hfFile['train_frei_chen'][index, ...]
         else:
             imgX = hfFile['test'][index, ...]
             imgY = hfFile['test_groundtruth'][index, ...]
+            imgFC = hfFile['train_frei_chen'][index, ...]
 
         # transform from numpy to PIL image
         imgX = Image.fromarray(imgX)
         imgY = Image.fromarray(imgY)
+        imgFC = Image.fromarray(imgFC)
 
         # init transformations
 
@@ -87,36 +88,34 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         do_resize_crop = np.random.randint(2)
 
         # create the same transformation to apply to both input and label
-        transformX = transforms.Compose([
+        transform = transforms.Compose([
             RotationTransform(rotation),
             CropResizeTransform(top, left, height, width, do_resize_crop),
             transforms.ToTensor(),
           ])
         
-        transformY = transforms.Compose([
-            RotationTransform(rotation),
-            CropResizeTransform(top, left, height, width, do_resize_crop),
-            transforms.ToTensor(),
-          ])
-
         # apply transformation
-        tensorX = transformX(imgX)
-        tensorY = transformY(imgY)
+        tensorX = transform(imgX)
+        tensorY = transform(imgY)
+        tensorFC = transform(imgFC)
+
+        if(self.frei_chen):
+            tensorX = append_channel(tensorX, tensorFC)
+
 
         # send to GPU if it exists
         if torch.cuda.is_available():
             tensorX = tensorX.cuda()
             tensorY = tensorY.cuda()
-
         return (tensorX, tensorY)
  
     def __len__(self):
         
         return self.sizeTrain 
 
-def load_dataset(path, training, transform=None):
+def load_dataset(path, training, frei_chen=False):
 
-    dataset = Road_Segmentation_Database(path, training, transform)
+    dataset = Road_Segmentation_Database(path, training, frei_chen)
 
     # create pytorch dataloader with batchsize of 8
     loader = torch.utils.data.DataLoader(
