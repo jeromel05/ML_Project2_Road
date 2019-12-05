@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
@@ -12,19 +13,21 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import torchvision.transforms.functional as TF
 import random
-import torch.nn.functional as F
+
 from database import *
 from helpers import *
-
-
 
 #cell content is taken and adapted from https://github.com/milesial/Pytorch-UNet
 """ Parts of the U-Net model """
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+def get_padding(kernel_size = 3, dilation = 1):
+  """ Get the required padding to be applied in order to extend the image for convolution.
 
+    Args:
+      kernel_size: the size of the applied kernel. Should be odd!
+      dilation: the dilation factor applied to the kernel. Must be int!
+  """
+  return (kernel_size-1)//2 * dilation
 
 class DoubleConv(nn.Module):
     """(reflection padding => convolution => [BN] => ReLU)"""
@@ -32,16 +35,31 @@ class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, padding=1):
         super().__init__()
         self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size, padding),
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size, padding),
+            nn.LeakyReLU(negative_slope=0.01, inplace=False),
+            nn.Conv2d(out_channels, out_channels, kernel_size=kernel_size, padding=padding),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.LeakyReLU(negative_slope=0.01, inplace=False),
+            nn.Dropout2d(p=0.3, inplace = True)
         )
 
     def forward(self, x):
         return self.double_conv(x)
+
+class Conv(nn.Module):
+    """(reflection padding => convolution => [BN] => ReLU)"""
+
+    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding),
+            nn.BatchNorm2d(out_channels),
+            nn.LeakyReLU(negative_slope=0.01, inplace=False)
+        )
+
+    def forward(self, x):
+        return self.conv(x)
 
 class ConvReflection(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -50,9 +68,9 @@ class ConvReflection(nn.Module):
         super().__init__()
         self.conv = nn.Sequential(
             nn.ReflectionPad2d(padding),
-            nn.Conv2d(in_channels, out_channels, kernel_size),
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(negative_slope=0.01, inplace=False)
         )
 
     def forward(self, x):
@@ -66,14 +84,14 @@ class Down(nn.Module):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels, kernel_size, padding)
+            DoubleConv(in_channels, out_channels, kernel_size=kernel_size, padding=padding)
         )
 
     def forward(self, x):
         return self.maxpool_conv(x)
 
 
-class UpUnet(nn.Module):
+class UpUNet(nn.Module):
     """Upscaling then double conv"""
 
     def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, bilinear=True):
@@ -85,7 +103,7 @@ class UpUnet(nn.Module):
         else:
             self.up = nn.ConvTranspose2d(in_channels // 2, in_channels // 2, kernel_size=2, stride=2)
 
-        self.conv = DoubleConv(in_channels, out_channels, kernel_size, padding)
+        self.conv = DoubleConv(in_channels, out_channels) # padding is done in the forward
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -103,25 +121,23 @@ class UpUnet(nn.Module):
 
 
 class OutConv(nn.Module):
-    def __init__(self, in_channels, out_channels, sigmoid=False ):
+    def __init__(self, in_channels, out_channels, sigmoid=True):
         super(OutConv, self).__init__()
         self.sigmoid = sigmoid
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, dilation=1)
 
     def forward(self, x):
-        if(self.sigmoid):
-
+        if(not self.sigmoid):
             return self.conv(x)
         else:
-            return nn.Sigmoid(self.conv(x))
+            return nn.Sigmoid()(self.conv(x))
 
 
 #cell content is taken and adapted from https://github.com/milesial/Pytorch-UNet
 """ Full assembly of the parts to form the complete network """
-import torch.nn.functional as F
 
 class UNet(nn.Module):
-    def __init__(self, n_channels=3, n_classes=2, bilinear=True):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=True):
         super(UNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -150,3 +166,4 @@ class UNet(nn.Module):
         x = self.up4(x, x1)
         logits = self.outc(x)
         return logits
+

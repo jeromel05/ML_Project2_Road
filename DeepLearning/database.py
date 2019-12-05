@@ -15,6 +15,31 @@ import torch.nn.functional as F
 from network import *
 from helpers import *
 
+# adapted from pytorch doc
+class RotationTransform:
+    """Rotate by a given angles."""
+
+    def __init__(self, angle):
+        self.angle = angle
+
+    def __call__(self, x):
+
+        return TF.rotate(x, self.angle)
+
+class CropResizeTransform:
+    """Rotate by a given angles if do is set to true."""
+    def __init__(self, top, left, height, width, do):
+        self.top = top
+        self.left = left
+        self.height = height
+        self.width = width
+        self.do = do
+    def __call__(self, x):
+        if self.do:
+          x = TF.resized_crop(x, self.top, self.left, self.height, self.width, (400,400))
+
+        return x
+
 class Road_Segmentation_Database(torch.utils.data.Dataset):
     """Road Segmentation database. Reads a h5 for performance. Caches the whole h5 and performs transformations on the images."""
     def __init__(self, thing, training, transform=None):
