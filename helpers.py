@@ -415,12 +415,12 @@ def see_result(loader, net, threshold=0.5, proba=False):
   """
   images, groundtruth = next(iter(loader)) 
   outputs = net(images)
-
+  if proba and threshold == 0:
+    outputs = nn.Sigmoid()(outputs)
   image = images[0].cpu().numpy()
   groundtruth = groundtruth[0].cpu().numpy()
   net_result = outputs[0].detach().cpu().numpy()
   if not proba:
-    net_result = net_result if threshold > 0 else nn.Sigmoid()(net_result)
     net_result = net_result > threshold
   image = np.moveaxis(image, 0, 2)
 
