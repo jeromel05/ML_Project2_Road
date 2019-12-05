@@ -15,7 +15,13 @@ import random
 import torch.nn.functional as F
 from database import *
 from helpers import *
+random.seed(1)
+np.random.seed(1)
+torch.manual_seed(1)
+torch.cuda.manual_seed(1)
 
+torch.set_default_tensor_type(torch.cuda.FloatTensor)
+torch.backends.cudnn.benchmark=True
 
 
 #cell content is taken and adapted from https://github.com/milesial/Pytorch-UNet

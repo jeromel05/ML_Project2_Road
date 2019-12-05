@@ -15,6 +15,10 @@ from database import *
 from network import *
 import re
 import glob
+random.seed(1)
+np.random.seed(1)
+torch.manual_seed(1)
+torch.cuda.manual_seed(1)
 
 torch.set_default_tensor_type(torch.cuda.FloatTensor)
 torch.backends.cudnn.benchmark=True
@@ -398,45 +402,46 @@ def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_t
   # if model does not beat the last one return the last f1  
   return last_best_f1_test
 
-def see_result(loader, net, threshold=0.5):
-	"""Computes the result of the network on one random input image and compares it to the actual required result
-	
-	Args:
-        loader: pytorch loader to test the image of
-        net: network you want to test
-		    threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+def see_result(loader, net, threshold=0.5, proba=False):
+  """Computes the result of the network on one random input image and compares it to the actual required result
+
+    Args:
+      loader: pytorch loader to test the image of
+      net: network you want to test
+      threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
 
     Returns:
-        The image comparing all
-	"""
-	images, groundtruth = next(iter(loader)) 
-	outputs = net(images)
+      The image comparing all
+  """
+  images, groundtruth = next(iter(loader)) 
+  outputs = net(images)
 
-	image = images[0].cpu().numpy()
-	groundtruth = groundtruth[0].cpu().numpy()
-	net_result = outputs[0].detach().cpu().numpy()
-	net_result = net_result > 0.5
-	image = np.moveaxis(image, 0, 2)
+  image = images[0].cpu().numpy()
+  groundtruth = groundtruth[0].cpu().numpy()
+  net_result = outputs[0].detach().cpu().numpy()
+  if not proba:
+    net_result = net_result if threshold > 0 else nn.Sigmoid()(net_result)
+    net_result = net_result > threshold
+  image = np.moveaxis(image, 0, 2)
 
-	image = image*255
-	# image = image*std + mean
-	image = image
-	groundtruth = np.moveaxis(groundtruth, 0, 2)
-	net_result = np.moveaxis(net_result, 0, 2)
-	net_result = transform_to_patch_format(net_result)
-	image = image.astype("uint8")
-	groundtruth = groundtruth.astype("uint8")
-	net_result = net_result.astype("uint8")
+  image = image*255
+  groundtruth = np.moveaxis(groundtruth, 0, 2)
+  net_result = np.moveaxis(net_result, 0, 2)
+  if not proba:
+    net_result = transform_to_patch_format(net_result)  
+  image = image.astype("uint8")
+  groundtruth = (groundtruth*255).astype("uint8")
+  net_result = (net_result*255).astype("uint8")
 
-	groundtruth = groundtruth.reshape((400,400))*255
-	net_result = net_result.reshape((400,400))*255
-	# print(net_result)
+  groundtruth = groundtruth.reshape((400,400))
+  net_result = net_result.reshape((400,400))
+  # print(net_result)
 
-	groundtruth = convert_1_to_3_channels(groundtruth)
-	net_result = convert_1_to_3_channels(net_result)
+  groundtruth = convert_1_to_3_channels(groundtruth)
+  net_result = convert_1_to_3_channels(net_result)
 
-	compare = np.hstack([image, groundtruth, net_result])
-	return Image.fromarray(compare)
+  compare = np.hstack([image, groundtruth, net_result])
+  return Image.fromarray(compare)
 
 from scipy.ndimage import rotate
 
