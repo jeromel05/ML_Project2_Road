@@ -137,12 +137,99 @@ class OutConv(nn.Module):
         else:
             return nn.Sigmoid()(self.conv(x))
 
+class UpUNet_crop(nn.Module):
+    """Upscaling then double conv"""
+
+    def __init__(self, in_channels, out_channels, kernel_size=3, padding=1, bilinear=True):
+        super().__init__()
+
+        # if bilinear, use the normal convolutions to reduce the number of channels
+        if bilinear:
+            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        else:
+            self.up = nn.ConvTranspose2d(in_channels // 2, in_channels // 2, kernel_size=2, stride=2)
+
+        self.conv = DoubleConv(in_channels, out_channels, kernel_size=kernel_size, padding=padding) # padding is done in the forward
+
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+        cropped_x2 = x2.narrow(2, diffY//2, x1.size()[2])
+        cropped_x2 = cropped_x2.narrow(3, diffX//2, x1.size()[3])
+        x = torch.cat([cropped_x2, x1], dim=1)
+        return self.conv(x)
+
+class UpSpeUNet_crop(nn.Module):
+    """Upscaling then double conv"""
+
+    def __init__(self, in_channels, out_channels, bilinear=True):
+        super().__init__()
+
+        # if bilinear, use the normal convolutions to reduce the number of channels
+        if bilinear:
+            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        else:
+            self.up = nn.ConvTranspose2d(in_channels // 2, in_channels // 2, kernel_size=2, stride=2)
+
+        self.conv1 = Conv(in_channels, out_channels*2, kernel_size=4, padding=0) # padding is done in the forward
+        self.conv2 = Conv(out_channels*2, out_channels, kernel_size=3, padding=0)
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+        cropped_x2 = x2.narrow(2, diffY//2, x1.size()[2])
+        cropped_x2 = cropped_x2.narrow(3, diffX//2, x1.size()[3])
+        x = torch.cat([cropped_x2, x1], dim=1)
+        return self.conv2(self.conv1(x))
+
+class ActualUNet(nn.Module):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=False, sigmoid=False):
+        super(ActualUNet, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+
+        self.pad_mirror = nn.ReflectionPad2d( (588 - 400) // 2)
+        self.inc = DoubleConv(n_channels, 64, kernel_size=3, padding=0)
+        self.down1 = Down(64, 128, kernel_size=3, padding=0)
+        self.down2 = Down(128, 256, kernel_size=3, padding=0)
+        self.down3 = Down(256, 512, kernel_size=3, padding=0)
+        self.down4 = Down(512, 512, kernel_size=3, padding=0)
+        self.up1 = UpUNet_crop(1024, 256, kernel_size=3, padding=0, bilinear=bilinear)
+        self.up2 = UpSpeUNet_crop(512, 128, bilinear=bilinear)
+        self.up3 = UpUNet_crop(256, 64, kernel_size=3, padding=0, bilinear=bilinear)
+        self.up4 = UpUNet_crop(128, 64, kernel_size=3, padding=0, bilinear=bilinear)
+        self.outc = OutConv(64, n_classes, sigmoid)
+
+    def forward(self, x):
+        x0 = self.pad_mirror(x)
+        # print(x0.size())
+        x1 = self.inc(x0)
+        # print(x1.size())
+        x2 = self.down1(x1)
+        # print(x2.size())
+        x3 = self.down2(x2)
+        # print(x3.size())
+        x4 = self.down3(x3)
+        # print(x4.size())
+        x5 = self.down4(x4)
+        # print(x5.size())
+        x = self.up1(x5, x4)
+        # print(x.size())
+        x = self.up2(x, x3)
+        # print(x.size())
+        x = self.up3(x, x2)
+        # print(x.size())
+        x = self.up4(x, x1)
+        # print(x.size())
+        logits = self.outc(x)
+        # print(logits.size())
+        return logits
+
 
 #cell content is taken and adapted from https://github.com/milesial/Pytorch-UNet
 """ Full assembly of the parts to form the complete network """
-
-import torch.nn.functional as F
-
 
 class UNet(nn.Module):
     def __init__(self, n_channels=3, n_classes=1, bilinear=True, sigmoid=False):
@@ -152,10 +239,10 @@ class UNet(nn.Module):
         self.bilinear = bilinear
 
         self.inc = DoubleConv(n_channels, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
-        self.down4 = Down(512, 512)
+        self.down1 = Down(64, 128, kernel_size=3, padding=0)
+        self.down2 = Down(128, 256, kernel_size=3, padding=0)
+        self.down3 = Down(256, 512, kernel_size=3, padding=0)
+        self.down4 = Down(512, 512, kernel_size=3, padding=0)
         self.up1 = UpUNet(1024, 256, bilinear)
         self.up2 = UpUNet(512, 128, bilinear)
         self.up3 = UpUNet(256, 64, bilinear)
@@ -183,7 +270,7 @@ class ReflectionUNet(nn.Module):
         self.bilinear = bilinear
 
         self.image = ConvReflection(n_channels,64)
-        self.inc = DoubleConv(64, 64)
+        self.inc = Conv(64, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
@@ -216,7 +303,8 @@ class EncodeDecodeNet(nn.Module):
             ConvReflection(3, 8, 11, 5),
             Down(8, 8),
             DoubleConv(8, 8),
-            DoubleConv(8, 16),
+            Down(8,16)
+
 
       )
 

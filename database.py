@@ -113,14 +113,14 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         
         return self.sizeTrain 
 
-def load_dataset(path, training, frei_chen=False):
+def load_dataset(path, training, batch_size=8,frei_chen=False):
 
     dataset = Road_Segmentation_Database(path, training, frei_chen)
 
     # create pytorch dataloader with batchsize of 8
     loader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=8,
+        batch_size=batch_size,
         shuffle=True,
         num_workers=0
     )
