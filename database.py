@@ -108,7 +108,10 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
 
         list_of_transforms = set_transform_random(self.list_of_transforms).copy()
         list_of_transforms.append(transforms.ToTensor())
-        transform = transforms.Compose(list_of_transforms)
+        if self.training:
+            transform = transforms.Compose(list_of_transforms)
+        else:
+            transform = transforms.ToTensor()
 
         tensorX = transform(imgX)
         tensorY = transform(imgY)
