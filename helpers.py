@@ -260,32 +260,6 @@ def convert_1_to_3_channels(image):
     return stacked_img    
     
 
-
-# adapted from pytorch doc
-class RotationTransform:
-    """Rotate by a given angles."""
-
-    def __init__(self, angle):
-        self.angle = angle
-
-    def __call__(self, x):
-
-        return TF.rotate(x, self.angle)
-
-class CropResizeTransform:
-    """Rotate by a given angles if do is set to true."""
-    def __init__(self, top, left, height, width, do):
-        self.top = top
-        self.left = left
-        self.height = height
-        self.width = width
-        self.do = do
-    def __call__(self, x):
-        if self.do:
-          x = TF.resized_crop(x, self.top, self.left, self.height, self.width, (400,400))
-
-        return x
-
 def tensor_to_PIL(tensor):
 	"""Transforms tensor to PIL image. This multiplies the tensor by 255 and converts to RGB"""
 	return transforms.ToPILImage()(tensor).convert("RGB")

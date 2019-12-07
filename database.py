@@ -27,16 +27,18 @@ torch.backends.cudnn.benchmark=True
 class RotationTransform:
     """Rotate by a given angles."""
 
-    def __init__(self):
+    def __init__(self, angle_base=90):
         # create random rotation in one cardinal directions
-        angle = np.random.randint(4) * 90
+        self.angle_base = angle_base
+        self.angle_factor = 360/self.angle_base
+        angle = np.random.randint(self.angle_factor) * self.angle_base
         self.angle = angle
 
     def __call__(self, x):
         return TF.rotate(x, self.angle)
 
     def set_random(self):
-        angle = np.random.randint(4) * 90
+        angle = np.random.randint(self.angle_factor) * self.angle_base
         self.angle = angle
 
 class CropResizeTransform:
@@ -74,12 +76,11 @@ def set_transform_random(list_of_transforms):
 
 class Road_Segmentation_Database(torch.utils.data.Dataset):
     """Road Segmentation database. Reads a h5 for performance. Caches the whole h5 and performs transformations on the images."""
-    def __init__(self, thing, training, list_of_transforms, frei_chen=False):
+    def __init__(self, thing, training, list_of_transforms):
         super(Road_Segmentation_Database, self).__init__()
         self.hf_path = thing
         self.hf = h5py.File(self.hf_path, 'r')    
         self.training = training
-        self.frei_chen = frei_chen
         self.list_of_transforms = list_of_transforms
 
         if self.training:
@@ -96,11 +97,9 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         if self.training:
             imgX = hfFile['train'][index, ...]
             imgY = hfFile['train_groundtruth'][index, ...]
-            imgFC = hfFile['train_frei_chen'][index, ...]
         else:
             imgX = hfFile['test'][index, ...]
             imgY = hfFile['test_groundtruth'][index, ...]
-            imgFC = hfFile['train_frei_chen'][index, ...]
 
         # transform from numpy to PIL image
         imgX = Image.fromarray(imgX)
@@ -115,12 +114,6 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
 
         tensorX = transform(imgX)
         tensorY = transform(imgY)
-        
-
-        if(self.frei_chen):
-            imgFC = Image.fromarray(imgFC)
-            tensorFC = transform(imgFC)
-            tensorX = append_channel(tensorX, tensorFC)
 
         # send to GPU if it exists
         if torch.cuda.is_available():
@@ -132,9 +125,9 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         
         return self.sizeTrain 
 
-def load_dataset(path, training, list_of_transforms, batch_size=8, frei_chen=False):
+def load_dataset(path, training, list_of_transforms, batch_size=8):
 
-    dataset = Road_Segmentation_Database(path, training, list_of_transforms, frei_chen)
+    dataset = Road_Segmentation_Database(path, training, list_of_transforms)
 
     # create pytorch dataloader with batchsize of 8
     loader = torch.utils.data.DataLoader(
