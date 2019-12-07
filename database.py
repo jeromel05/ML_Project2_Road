@@ -76,13 +76,13 @@ def set_transform_random(list_of_transforms):
 
 class Road_Segmentation_Database(torch.utils.data.Dataset):
     """Road Segmentation database. Reads a h5 for performance. Caches the whole h5 and performs transformations on the images."""
-    def __init__(self, thing, training, list_of_transforms):
+    def __init__(self, thing, training, list_of_transforms, forced_transform=None):
         super(Road_Segmentation_Database, self).__init__()
         self.hf_path = thing
         self.hf = h5py.File(self.hf_path, 'r')    
         self.training = training
         self.list_of_transforms = list_of_transforms
-
+        self.forced_transform = forced_transform
         if self.training:
             self.sizeTrain = len(self.hf['train'])
 
@@ -105,6 +105,11 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         imgX = Image.fromarray(imgX)
         imgY = Image.fromarray(imgY)
 
+        # do transform do be done on both train and test
+        if self.forced_transform is not None:
+            imgX = self.forced_transform(imgX)
+            imgY = self.forced_transform(imgY)
+
         list_of_transforms = set_transform_random(self.list_of_transforms).copy()
         list_of_transforms.append(transforms.ToTensor())
         if self.training:
@@ -119,15 +124,16 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         if torch.cuda.is_available():
             tensorX = tensorX.cuda()
             tensorY = tensorY.cuda()
+
         return (tensorX, tensorY)
  
     def __len__(self):
         
         return self.sizeTrain 
 
-def load_dataset(path, training, list_of_transforms, batch_size=8):
+def load_dataset(path, training, list_of_transforms, batch_size=8, forced_transform=None):
 
-    dataset = Road_Segmentation_Database(path, training, list_of_transforms)
+    dataset = Road_Segmentation_Database(path, training, list_of_transforms, forced_transform=forced_transform)
 
     # create pytorch dataloader with batchsize of 8
     loader = torch.utils.data.DataLoader(
