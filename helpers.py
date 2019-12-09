@@ -61,7 +61,7 @@ def get_padding(kernel_size = 3, dilation = 1):
   return (kernel_size-1)//2 * dilation
 
 
-def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True ):
+def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True, decider=decide_simple):
   """ Saves all results of the net on the test set in the drive
 
     Args:
@@ -90,9 +90,12 @@ def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, 
       output = net(image_batch)
       net_result = nn.Sigmoid()(output) if threshold == 0 else output
       net_result = net_result[0].clone().detach().squeeze().cpu().numpy()
+      # make decision
+      net_result = decide(net, np_image, decider, threshold)
       net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
       net_result = (net_result*255).astype("uint8")
       net_result = net_result.reshape((400,400))
+
       net_result = convert_1_to_3_channels(net_result)
       net_result = Image.fromarray(net_result).resize((608,608))
       net_result = np.array(net_result)

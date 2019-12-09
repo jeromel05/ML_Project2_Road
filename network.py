@@ -420,16 +420,18 @@ class DeeperUNet(nn.Module):
         self.n_classes = n_classes
         self.bilinear = bilinear
 
-        self.pad_mirror = nn.ReflectionPad2d( (588 - 400) // 2)
+        self.pad_mirror = nn.ReflectionPad2d( (764 - 388) // 2)
         self.inc = DoubleConv(n_channels, 64, kernel_size=3, padding=0)
         self.down1 = Down(64, 128, kernel_size=3, padding=0)
         self.down2 = Down(128, 256, kernel_size=3, padding=0)
         self.down3 = Down(256, 512, kernel_size=3, padding=0)
-        self.down4 = Down(512, 512, kernel_size=3, padding=0)
-        self.up1 = UpUNet_crop(1024, 256, kernel_size=3, padding=0, bilinear=bilinear)
-        self.up2 = UpSpeUNet_crop(512, 128, bilinear=bilinear)
-        self.up3 = UpUNet_crop(256, 64, kernel_size=3, padding=0, bilinear=bilinear)
-        self.up4 = UpUNet_crop(128, 64, kernel_size=3, padding=0, bilinear=bilinear)
+        self.down4 = Down(512, 1024, kernel_size=3, padding=0)
+        self.down5 = Down(1024, 1024, kernel_size=3, padding=0)
+        self.up1 = UpUNet_crop(2048, 512, kernel_size=3, padding=0, bilinear=bilinear)
+        self.up2 = UpUNet_crop(1024, 256, kernel_size=3, padding=0, bilinear=bilinear)
+        self.up3 = UpUNet_crop(512, 128, kernel_size=3, padding=0, bilinear=bilinear)
+        self.up4 = UpUNet_crop(256, 64, kernel_size=3, padding=0, bilinear=bilinear)
+        self.up5 = UpUNet_crop(128, 64, kernel_size=3, padding=0, bilinear=bilinear)
         self.outc = OutConv(64, n_classes, sigmoid)
 
     def forward(self, x):
@@ -445,13 +447,68 @@ class DeeperUNet(nn.Module):
         # print(x4.size())
         x5 = self.down4(x4)
         # print(x5.size())
-        x = self.up1(x5, x4)
+        x6 = self.down5(x5)
+        # print(x5.size())
+        x = self.up1(x6, x5)
         # print(x.size())
-        x = self.up2(x, x3)
+        x = self.up2(x, x4)
         # print(x.size())
-        x = self.up3(x, x2)
+        x = self.up3(x, x3)
         # print(x.size())
-        x = self.up4(x, x1)
+        x = self.up4(x, x2)
+        # print(x.size())
+        x = self.up5(x, x1)
+        # print(x.size())
+        logits = self.outc(x)
+        # print(logits.size())
+        return logits
+
+class DeeperUNetDilated(nn.Module):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=False, sigmoid=False):
+        super(DeeperUNetDilated, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+
+        self.pad_mirror = nn.ReflectionPad2d( (1144 - 392) // 2)
+        self.inc = DoubleConv(n_channels, 64, kernel_size=3, padding=0, dilation=2)
+        self.down1 = Down(64, 128, kernel_size=3, padding=0, dilation=2)
+        self.down2 = Down(128, 256, kernel_size=3, padding=0, dilation=2)
+        self.down3 = Down(256, 512, kernel_size=3, padding=0, dilation=2)
+        self.down4 = Down(512, 1024, kernel_size=3, padding=0, dilation=2)
+        self.down5 = Down(1024, 1024, kernel_size=3, padding=0, dilation=2)
+        self.up1 = UpUNet_crop(2048, 512, kernel_size=3, padding=0, dilation=2, bilinear=bilinear)
+        self.up2 = UpUNet_crop(1024, 256, kernel_size=3, padding=0, dilation=2, bilinear=bilinear)
+        self.up3 = UpUNet_crop(512, 128, kernel_size=3, padding=0, dilation=2, bilinear=bilinear)
+        self.up4 = UpUNet_crop(256, 64, kernel_size=3, padding=0, dilation=2, bilinear=bilinear)
+        self.up5 = UpUNet_crop(128, 64, kernel_size=3, padding=0, dilation=2, bilinear=bilinear)
+
+        self.outc = OutConv(64, n_classes, sigmoid)
+
+    def forward(self, x):
+        x0 = self.pad_mirror(x)
+        # print(x0.size())
+        x1 = self.inc(x0)
+        # print(x1.size())
+        x2 = self.down1(x1)
+        # print(x2.size())
+        x3 = self.down2(x2)
+        # print(x3.size())
+        x4 = self.down3(x3)
+        # print(x4.size())
+        x5 = self.down4(x4)
+        # print(x5.size())
+        x6 = self.down5(x5)
+        # print(x5.size())
+        x = self.up1(x6, x5)
+        # print(x.size())
+        x = self.up2(x, x4)
+        # print(x.size())
+        x = self.up3(x, x3)
+        # print(x.size())
+        x = self.up4(x, x2)
+        # print(x.size())
+        x = self.up5(x, x1)
         # print(x.size())
         logits = self.outc(x)
         # print(logits.size())
@@ -491,56 +548,6 @@ class UNet(nn.Module):
         x = self.up4(x, x1)
         logits = self.outc(x)
         return logits
-
-class ReflectionUNet(nn.Module):
-    def __init__(self, n_channels=3, n_classes=1, bilinear=True):
-        super(ReflectionUNet, self).__init__()
-        self.n_channels = n_channels
-        self.n_classes = n_classes
-        self.bilinear = bilinear
-
-        self.image = ConvReflection(n_channels,64)
-        self.inc = Conv(64, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
-        self.down4 = Down(512, 512)
-        self.up1 = UpUNet(1024, 256, bilinear)
-        self.up2 = UpUNet(512, 128, bilinear)
-        self.up3 = UpUNet(256, 64, bilinear)
-        self.up4 = UpUNet(128, 64, bilinear)
-        self.outc = OutConv(64, n_classes)
-
-    def forward(self, x):
-        x0 = self.image(x)
-        x1 = self.inc(x0)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-        logits = self.outc(x)
-        return logits
-
-class EncodeDecodeNet(nn.Module):
-    def __init__(self, n_channels=3, n_classes=2, bilinear=True):
-
-      super(UNet, self).__init__()
-      self.network = nn.Sequential(
-            ConvReflection(3, 8, 11, 5),
-            Down(8, 8),
-            DoubleConv(8, 8),
-            Down(8,16)
-
-
-      )
-
-    def forward(self, x):
-        x = self.network(x)
-        return x
 
 # create network
 class Net(nn.Module):
