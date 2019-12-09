@@ -368,18 +368,20 @@ class ResizeUNet(nn.Module):
         return logits
 
 class ResizeUNetDilated(nn.Module):
-    def __init__(self, n_channels=3, n_classes=1, bilinear=False, sigmoid=False):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=False, sigmoid=False, dropout=False):
         super(ResizeUNetDilated, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.bilinear = bilinear
+        self.dropout = dropout
 
-        self.pad_mirror = nn.ReflectionPad2d( (760 - 400) // 2)
+        self.pad_mirror = nn.ReflectionPad2d( (768 - 392) // 2)
         self.inc = DoubleConv(n_channels, 64, kernel_size=3, padding=0, dilation=2)
         self.down1 = Down(64, 128, kernel_size=3, padding=0, dilation=2)
         self.down2 = Down(128, 256, kernel_size=3, padding=0, dilation=2)
         self.down3 = Down(256, 512, kernel_size=3, padding=0, dilation=2)
         self.down4 = Down(512, 512, kernel_size=3, padding=0, dilation=2)
+        self.drop = nn.Dropout(0.5)
         self.up1 = UpUNet_crop(1024, 256, kernel_size=3, padding=0, dilation=2, bilinear=bilinear)
         self.up2 = UpUNet_crop(512, 128, kernel_size=3, padding=0, dilation=2, bilinear=bilinear)
         self.up3 = UpUNet_crop(256, 64, kernel_size=3, padding=0, dilation=2, bilinear=bilinear)
@@ -398,6 +400,8 @@ class ResizeUNetDilated(nn.Module):
         x4 = self.down3(x3)
         # print(x4.size())
         x5 = self.down4(x4)
+        if self.dropout:
+          x5 = self.drop(x5)
         # print(x5.size())
         x = self.up1(x5, x4)
         # print(x.size())
@@ -412,7 +416,7 @@ class ResizeUNetDilated(nn.Module):
         return logits
 
 class ActualUNetDilated(nn.Module):
-    def __init__(self, n_channels=3, n_classes=1, bilinear=False, sigmoid=False):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=False, sigmoid=False, dropout=False):
         super(ActualUNetDilated, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -458,11 +462,12 @@ class ActualUNetDilated(nn.Module):
 
 
 class DeeperUNet(nn.Module):
-    def __init__(self, n_channels=3, n_classes=1, bilinear=False, sigmoid=False):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=False, sigmoid=False, dropout=False):
         super(DeeperUNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.bilinear = bilinear
+        self.dropout = dropout
 
         self.pad_mirror = nn.ReflectionPad2d( (764 - 388) // 2)
         self.inc = DoubleConv(n_channels, 64, kernel_size=3, padding=0)
@@ -471,6 +476,7 @@ class DeeperUNet(nn.Module):
         self.down3 = Down(256, 512, kernel_size=3, padding=0)
         self.down4 = Down(512, 1024, kernel_size=3, padding=0)
         self.down5 = Down(1024, 1024, kernel_size=3, padding=0)
+        self.drop = nn.Dropout(0.5)
         self.up1 = UpUNet_crop(2048, 512, kernel_size=3, padding=0, bilinear=bilinear)
         self.up2 = UpUNet_crop(1024, 256, kernel_size=3, padding=0, bilinear=bilinear)
         self.up3 = UpUNet_crop(512, 128, kernel_size=3, padding=0, bilinear=bilinear)
@@ -492,6 +498,8 @@ class DeeperUNet(nn.Module):
         x5 = self.down4(x4)
         # print(x5.size())
         x6 = self.down5(x5)
+        if self.dropout:
+          x6 = self.drop(x6)
         # print(x5.size())
         x = self.up1(x6, x5)
         # print(x.size())
