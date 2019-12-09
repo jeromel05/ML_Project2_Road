@@ -81,6 +81,32 @@ def decide(net, np_image, decider,threshold=0.5):
   list_of_decisions = multi_decision(net, np_image, threshold)
   return decider(list_of_decisions)
 
+def print_statistic(cur_train_loss, cur_test_loss, trainingLoss, validationLoss, time_interval="epoch"):
+  """Prints the statis
+  
+    Args:
+        cur_train_loss: current train loss of the network
+        cur_test_loss: current test loss of the network
+        trainingLoss: array of all previous losses
+        validationLoss: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+  """
+  print("Current training loss is " + str(train_running_loss/trainDataSize))
+  print("Current test loss is " + str(test_running_loss/testDataSize))
+  print("Current f1_score for training is " + str(train_running_f1/trainDataSize))
+  print("Current f1_score for test is " + str(test_running_f1/testDataSize))
+  plt.title("Training loss against validation loss per " + time_interval)
+  plt.plot(trainingLoss[:], label='Training loss')
+  plt.plot(validationLoss[:], label='Validation loss')
+  plt.legend(frameon=False)
+  plt.show()
+  plt.title("Training loss against validation loss")
+  plt.plot(training_f1[:], label='Training F1_score')
+  plt.plot(validation_f1[:], label='Validation F1_score')
+  plt.legend(frameon=False)
+  plt.show()
+
+
 
 def decide_simple(list_of_decisions):
   """Return the decision of the reference image (without rotation)
@@ -190,7 +216,7 @@ def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, 
       net_result = nn.Sigmoid()(output) if threshold == 0 else output
       net_result = net_result[0].clone().detach().squeeze().cpu().numpy()
       # make decision
-      net_result = decide(net, np_image, decider, threshold)
+      net_result = decide(net, net_result, decider, threshold)
       net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
       net_result = (net_result*255).astype("uint8")
       net_result = net_result.reshape(net_size)
