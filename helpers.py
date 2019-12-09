@@ -23,6 +23,106 @@ torch.cuda.manual_seed(1)
 torch.set_default_tensor_type(torch.cuda.FloatTensor)
 torch.backends.cudnn.benchmark=True
 
+from scipy.ndimage import rotate
+
+def multi_decision(net, np_image, threshold=0.5):
+  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
+  
+    Args:
+        net: the network you use for the prediction
+        np_image: image you want to test
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+    Returns:
+        four decisions computed from the four rotations of the image by the network in the correct orientation
+  """
+  np_image = np.moveaxis(np_image, 0, 2)
+  rotations = []
+  for i in range(4):
+    rotated_image = rotate(np_image, i*90)#np.rot90(np_image, k=i+1)
+    rotated_image = np.moveaxis(rotated_image, 2, 0)
+    rotations.append(rotated_image)
+
+  for i in range(4):
+    rotations[i] = torch.from_numpy(rotations[i].copy())
+
+  for i in range(4):
+    rotations[i] = (net(rotations[i].unsqueeze(0).cuda()).detach().squeeze().cpu() > threshold).float()
+    
+  for i in range(4):
+    rotations[i] = np.array(TF.rotate(transforms.ToPILImage()(rotations[i]).convert("L"), -i*90))>128
+
+  return rotations
+
+def append_channel(image_tensor, channel_tensor):
+  """Appends a channel to an image
+    Args:
+        image_tensor: tensor of the image 3 400 400
+        channel: the tensor of the channel you want to append 1 400 400
+
+    Returns:
+        the image with the appended channel 4 400 400
+  """
+  # now we can stack
+  return torch.cat([image_tensor, channel_tensor], dim=0)  # 4 400 400
+
+def decide(net, np_image, decider,threshold=0.5):
+  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
+  
+    Args:
+        net: the network you use for the prediction
+        np_image: image you want to test
+        decider: decide logic function needs to return an image and input a list of decisions
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+    Returns:
+        decision for this image
+  """
+  list_of_decisions = multi_decision(net, np_image, threshold)
+  return decider(list_of_decisions)
+
+
+def decide_simple(list_of_decisions):
+  """Return the decision of the reference image (without rotation)
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+
+  return list_of_decisions[0]
+
+def decide_or_logic(list_of_decisions):
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+  decision = np.zeros(list_of_decisions[0].shape)
+  for vote in list_of_decisions:
+    decision = decision + vote
+
+  return decision >= 1
+
+def decide_and_logic(list_of_decisions):
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+  decision = np.ones(list_of_decisions[0].shape)
+  for vote in list_of_decisions:
+    decision = decision * vote
+
+  return decision == 1
+
+def decide_majority_logic(list_of_decisions):
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+  decision = np.zeros(list_of_decisions[0].shape)
+  for vote in list_of_decisions:
+    decision = decision + vote
+
+  return decision >= len(list_of_decisions)//2 + 1
+
 def find_mean_std(test_images):
     """Finds mean and std of images (UNUSED and probably false too don't use) """
       # find mean
@@ -418,105 +518,9 @@ def see_result(loader, net, threshold=0.5, proba=False):
   compare = np.hstack([image, groundtruth, net_result])
   return Image.fromarray(compare)
 
-from scipy.ndimage import rotate
-
-def multi_decision(net, np_image, threshold=0.5):
-  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
-  
-    Args:
-        net: the network you use for the prediction
-        np_image: image you want to test
-        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
-
-    Returns:
-        four decisions computed from the four rotations of the image by the network in the correct orientation
-  """
-  np_image = np.moveaxis(np_image, 0, 2)
-  rotations = []
-  for i in range(4):
-    rotated_image = rotate(np_image, i*90)#np.rot90(np_image, k=i+1)
-    rotated_image = np.moveaxis(rotated_image, 2, 0)
-    rotations.append(rotated_image)
-
-  for i in range(4):
-    rotations[i] = torch.from_numpy(rotations[i].copy())
-
-  for i in range(4):
-    rotations[i] = (net(rotations[i].unsqueeze(0).cuda()).detach().squeeze().cpu() > threshold).float()
-    
-  for i in range(4):
-    rotations[i] = np.array(TF.rotate(transforms.ToPILImage()(rotations[i]).convert("L"), -i*90))>128
-
-  return rotations
-
-def append_channel(image_tensor, channel_tensor):
-  """Appends a channel to an image
-    Args:
-        image_tensor: tensor of the image 3 400 400
-        channel: the tensor of the channel you want to append 1 400 400
-
-    Returns:
-        the image with the appended channel 4 400 400
-  """
-  # now we can stack
-  return torch.cat([image_tensor, channel_tensor], dim=0)  # 4 400 400
-
-def decide(net, np_image, decider,threshold=0.5):
-  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
-  
-    Args:
-        net: the network you use for the prediction
-        np_image: image you want to test
-        decider: decide logic function needs to return an image and input a list of decisions
-        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
-
-    Returns:
-        decision for this image
-  """
-  list_of_decisions = multi_decision(net, np_image, threshold)
-  return decider(list_of_decisions)
 
 
-def decide_simple(list_of_decisions):
-  """Return the decision of the reference image (without rotation)
-    Args:
-      list_of_decisions: all the decisions the network has provided
-  """
 
-  return list_of_decisions[0]
-
-def decide_or_logic(list_of_decisions):
-  """Decides with a list of decisions for each pixel vote what the pixel should be
-    Args:
-      list_of_decisions: all the decisions the network has provided
-  """
-  decision = np.zeros(list_of_decisions[0].shape)
-  for vote in list_of_decisions:
-    decision = decision + vote
-
-  return decision >= 1
-
-def decide_and_logic(list_of_decisions):
-  """Decides with a list of decisions for each pixel vote what the pixel should be
-    Args:
-      list_of_decisions: all the decisions the network has provided
-  """
-  decision = np.ones(list_of_decisions[0].shape)
-  for vote in list_of_decisions:
-    decision = decision * vote
-
-  return decision == 1
-
-def decide_majority_logic(list_of_decisions):
-  """Decides with a list of decisions for each pixel vote what the pixel should be
-    Args:
-      list_of_decisions: all the decisions the network has provided
-  """
-  decision = np.zeros(list_of_decisions[0].shape)
-  for vote in list_of_decisions:
-    decision = decision + vote
-
-  return decision >= len(list_of_decisions)//2 + 1
   
 
   
