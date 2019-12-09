@@ -36,21 +36,19 @@ def multi_decision(net, np_image, threshold=0.5):
     Returns:
         four decisions computed from the four rotations of the image by the network in the correct orientation
   """
-  np_image = np.moveaxis(np_image, 0, 2)
   rotations = []
   for i in range(4):
-    rotated_image = rotate(np_image, i*90)#np.rot90(np_image, k=i+1)
-    rotated_image = np.moveaxis(rotated_image, 2, 0)
+    rotated_image = rotate(np_image, i*90)
     rotations.append(rotated_image)
 
   for i in range(4):
-    rotations[i] = torch.from_numpy(rotations[i].copy())
-
-  for i in range(4):
-    rotations[i] = (net(rotations[i].unsqueeze(0).cuda()).detach().squeeze().cpu() > threshold).float()
+    inputs = transforms.ToTensor()(rotations[i]).unsqueeze(0).cuda()
+    output = net(inputs)
+    net_result = nn.Sigmoid()(output) if threshold == 0 else output
+    rotations[i] = (net_result.detach().squeeze().cpu() > 0.5).float()
     
   for i in range(4):
-    rotations[i] = np.array(TF.rotate(transforms.ToPILImage()(rotations[i]).convert("L"), -i*90))>128
+    rotations[i] = rotate(rotations[i], -i*90)
 
   return rotations
 
@@ -87,8 +85,8 @@ def print_statistic(cur_train_loss, cur_test_loss, trainingLoss, validationLoss,
     Args:
         cur_train_loss: current train loss of the network
         cur_test_loss: current test loss of the network
-        trainingLoss: array of all previous losses
-        validationLoss: if you BCEWithLogits loss use 0 otherwise use 0.5
+        trainingLoss: array of all previous train losses
+        validationLoss: array of all previous validation losses
 
   """
   print("Current training loss is " + str(train_running_loss/trainDataSize))
@@ -100,7 +98,7 @@ def print_statistic(cur_train_loss, cur_test_loss, trainingLoss, validationLoss,
   plt.plot(validationLoss[:], label='Validation loss')
   plt.legend(frameon=False)
   plt.show()
-  plt.title("Training loss against validation loss")
+  plt.title("Training loss against validation loss per " + time_interval)
   plt.plot(training_f1[:], label='Training F1_score')
   plt.plot(validation_f1[:], label='Validation F1_score')
   plt.legend(frameon=False)
@@ -203,20 +201,12 @@ def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, 
     satelite_images_path = prefix + 'test_set_images'
     image_names = glob.glob(satelite_images_path + '/*/*.png')
     test_images = list(map(Image.open, image_names))
-    transformX = transforms.Compose([
-    transforms.ToTensor(), # transform to range 0 1
-    ])
 
     for i, image_test in enumerate(test_images):
 
       image = transforms.Resize(net_size)(image_test)
-      image_batch = transformX(image)
-      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
-      output = net(image_batch)
-      net_result = nn.Sigmoid()(output) if threshold == 0 else output
-      net_result = net_result[0].clone().detach().squeeze().cpu().numpy()
       # make decision
-      net_result = decide(net, net_result, decider, threshold)
+      net_result = decide(net, np.array(image), decider, threshold)
       net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
       net_result = (net_result*255).astype("uint8")
       net_result = net_result.reshape(net_size)
