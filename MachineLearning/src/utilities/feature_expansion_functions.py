@@ -23,8 +23,8 @@ def feature_interaction(features):
     """
     res = np.zeros((features.shape[0], features.shape[1]**2))
     print(res.shape)
-    for i in range(np.round(features.shape[1]/2)):
-        for j in arange(np.round(features.shape[1]/2), features.shape[1], 1):
+    for i in range(np.around(features.shape[1]/2)):
+        for j in arange(np.around(features.shape[1]/2), features.shape[1], 1):
             res[:,i+j] = features[:,i] * features[:,j]
        
     return res

@@ -15,6 +15,10 @@ from database import *
 from network import *
 import re
 import glob
+random.seed(1)
+np.random.seed(1)
+torch.manual_seed(1)
+torch.cuda.manual_seed(1)
 
 torch.set_default_tensor_type(torch.cuda.FloatTensor)
 torch.backends.cudnn.benchmark=True
@@ -58,47 +62,47 @@ def get_padding(kernel_size = 3, dilation = 1):
 
 
 def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True ):
-	""" Saves all results of the net on the test set in the drive
+  """ Saves all results of the net on the test set in the drive
 
     Args:
-        net: net you want to create the images with
-        prefix: the prefix to the google colab 
-        path_to_results: where you want to save the results in google drive
-        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
-        compare: if you want to save both the original image and the result next to each other or only the result if False
-        patch: if you want to see patches or a grayscale representation of probabilities 
+      net: net you want to create the images with
+      prefix: the prefix to the google colab 
+      path_to_results: where you want to save the results in google drive
+      threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+      compare: if you want to save both the original image and the result next to each other or only the result if False
+      patch: if you want to see patches or a grayscale representation of probabilities 
 
   """
+  net.eval()
+  with torch.no_grad():
+    satelite_images_path = prefix + 'test_set_images'
+    image_names = glob.glob(satelite_images_path + '/*/*.png')
+    test_images = list(map(Image.open, image_names))
+    transformX = transforms.Compose([
+    transforms.ToTensor(), # transform to range 0 1
+    ])
 
-	net.eval()
-	with torch.no_grad():
-		satelite_images_path = prefix + 'test_set_images'
-		image_names = glob.glob(satelite_images_path + '/*/*.png')
-		test_images = list(map(Image.open, image_names))
-		transformX = transforms.Compose([
-		transforms.ToTensor(), # transform to range 0 1
-		])
+    for i, image_test in enumerate(test_images):
 
-		for i, image_test in enumerate(test_images):
+      image = transforms.Resize((400,400))(image_test)
+      image_batch = transformX(image)
+      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
+      output = net(image_batch)
+      net_result = nn.Sigmoid()(output) if threshold == 0 else output
+      net_result = net_result[0].clone().detach().squeeze().cpu().numpy()
+      net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
+      net_result = (net_result*255).astype("uint8")
+      net_result = net_result.reshape((400,400))
+      net_result = convert_1_to_3_channels(net_result)
+      net_result = Image.fromarray(net_result).resize((608,608))
+      net_result = np.array(net_result)
+      
+      if compare:
+        net_result = Image.fromarray(np.hstack([image_test, net_result]))
+      else:    
+        net_result = Image.fromarray(net_result)
 
-			image = transforms.Resize((400,400))(image_test)
-			image_batch = transformX(image)
-			image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
-			output = net(image_batch)
-			net_result = output[0].clone().detach().squeeze().cpu().numpy()
-			net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
-			net_result = (net_result*255).astype("uint8")
-			net_result = net_result.reshape((400,400))
-			net_result = convert_1_to_3_channels(net_result)
-			net_result = Image.fromarray(net_result).resize((608,608))
-			net_result = np.array(net_result)
-			if compare:
-				net_result = Image.fromarray(np.hstack([image_test, net_result]))
-			else:    
-				net_result = Image.fromarray(net_result)
-
-			net_result.save(path_to_results+"test_image_" + str(int(re.search(r"\d+", image_names[i]).group(0))) + ".png", "PNG")
-
+      net_result.save(path_to_results+"test_image_" + str(int(re.search(r"\d+", image_names[i]).group(0))) + ".png", "PNG")
 
 
 def see_result_on_test_set(net, prefix, compare=False, threshold=0.5 ):
@@ -323,45 +327,46 @@ def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_t
   # if model does not beat the last one return the last f1  
   return last_best_f1_test
 
-def see_result(loader, net, threshold=0.5):
-	"""Computes the result of the network on one random input image and compares it to the actual required result
-	
-	Args:
-        loader: pytorch loader to test the image of
-        net: network you want to test
-		    threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+def see_result(loader, net, threshold=0.5, proba=False):
+  """Computes the result of the network on one random input image and compares it to the actual required result
+
+    Args:
+      loader: pytorch loader to test the image of
+      net: network you want to test
+      threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
 
     Returns:
-        The image comparing all
-	"""
-	images, groundtruth = next(iter(loader)) 
-	outputs = net(images)
+      The image comparing all
+  """
+  images, groundtruth = next(iter(loader)) 
+  outputs = net(images)
+  if proba and threshold == 0:
+    outputs = nn.Sigmoid()(outputs)
+  image = images[0].cpu().numpy()
+  groundtruth = groundtruth[0].cpu().numpy()
+  net_result = outputs[0].detach().cpu().numpy()
+  if not proba:
+    net_result = net_result > threshold
+  image = np.moveaxis(image, 0, 2)
 
-	image = images[0].cpu().numpy()
-	groundtruth = groundtruth[0].cpu().numpy()
-	net_result = outputs[0].detach().cpu().numpy()
-	net_result = net_result > 0.5
-	image = np.moveaxis(image, 0, 2)
+  image = image*255
+  groundtruth = np.moveaxis(groundtruth, 0, 2)
+  net_result = np.moveaxis(net_result, 0, 2)
+  if not proba:
+    net_result = transform_to_patch_format(net_result)  
+  image = image.astype("uint8")
+  groundtruth = (groundtruth*255).astype("uint8")
+  net_result = (net_result*255).astype("uint8")
 
-	image = image*255
-	# image = image*std + mean
-	image = image
-	groundtruth = np.moveaxis(groundtruth, 0, 2)
-	net_result = np.moveaxis(net_result, 0, 2)
-	net_result = transform_to_patch_format(net_result)
-	image = image.astype("uint8")
-	groundtruth = groundtruth.astype("uint8")
-	net_result = net_result.astype("uint8")
+  groundtruth = groundtruth.reshape((400,400))
+  net_result = net_result.reshape((400,400))
+  # print(net_result)
 
-	groundtruth = groundtruth.reshape((400,400))*255
-	net_result = net_result.reshape((400,400))*255
-	# print(net_result)
+  groundtruth = convert_1_to_3_channels(groundtruth)
+  net_result = convert_1_to_3_channels(net_result)
 
-	groundtruth = convert_1_to_3_channels(groundtruth)
-	net_result = convert_1_to_3_channels(net_result)
-
-	compare = np.hstack([image, groundtruth, net_result])
-	return Image.fromarray(compare)
+  compare = np.hstack([image, groundtruth, net_result])
+  return Image.fromarray(compare)
 
 from scipy.ndimage import rotate
 
@@ -393,6 +398,18 @@ def multi_decision(net, np_image, threshold=0.5):
     rotations[i] = np.array(TF.rotate(transforms.ToPILImage()(rotations[i]).convert("L"), -i*90))>128
 
   return rotations
+
+def append_channel(image_tensor, channel_tensor):
+  """Appends a channel to an image
+    Args:
+        image_tensor: tensor of the image 3 400 400
+        channel: the tensor of the channel you want to append 1 400 400
+
+    Returns:
+        the image with the appended channel 4 400 400
+  """
+  # now we can stack
+  return torch.cat([image_tensor, channel_tensor], dim=0)  # 4 400 400
 
 def decide(net, np_image, decider,threshold=0.5):
   """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
