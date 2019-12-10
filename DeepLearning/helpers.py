@@ -219,82 +219,6 @@ def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, 
         net_result = Image.fromarray(net_result)
 
       net_result.save(path_to_results+"test_image_" + str(int(re.search(r"\d+", image_names[i]).group(0))) + ".png", "PNG")
-
-
-def mask_to_submission_strings(image, img_number):
-    """Reads a single image and outputs the strings that should go into the submission file
-
-    Args:
-        image: one image to convert to string format
-        img_number: the corresponding number in the test set
-
-    """
-    patch_size = 16
-    for j in range(0, image.shape[1], patch_size):
-        for i in range(0, image.shape[0], patch_size):
-            patch = image[i:i + patch_size, j:j + patch_size]
-            label = patch_to_label(patch)
-            yield("{:03d}_{}_{},{}".format(img_number, j, i, label))
-
-
-def masks_to_submission(prefix, submission_filename, images, image_names):
-	"""Converts images into a submission file
-
-    Args:
-        prefix: the prefix to the google colab 
-        submission_filename: the name of the submission file
-        images: all images you want to convert
-        image_names: all images name in the same order than their corresponding images you want to convert
-
-  """
-	with open(prefix + 'results/' +submission_filename, 'w') as f:
-		f.write('id,prediction\n')
-		# order images
-		image_in_order = np.zeros(np.array(images).shape)
-		for i,name in enumerate(image_names):  
-			image_nb = int(re.search(r"\d+", name).group(0))
-			image_in_order[image_nb - 1][:][:] = images[i]
-
-		for i in range(image_in_order.shape[0]):  
-			image = image_in_order[i][:][:]
-			f.writelines('{}\n'.format(s) for s in mask_to_submission_strings(image, i+1))
-
-def get_submission(net, prefix, submission_filename, threshold=0.5):
-  """Converts test set into a submission file in the results google drive folder
-
-    Args:
-        net: net you want to create the submission with
-        prefix: the prefix to the google colab 
-        submission_filename: the name of the submission file
-        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
-
-  """
-  results = []
-  net.eval()
-  with torch.no_grad():
-
-    # find all file names
-    satelite_images_path = prefix + 'test_set_images'
-    image_names = glob.glob(satelite_images_path + '/*/*.png')
-
-    # get all images
-    test_images = list(map(Image.open, image_names))
-    transformX = transforms.Compose([
-      transforms.ToTensor(), # transform to range 0 1
-    ])
-
-    for i, image in enumerate(test_images):
-
-      # images are 608*608 so we need to resize to fit network
-      image = transforms.Resize((400,400))(image)
-      image_batch = transformX(image)
-      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
-      output = net(image_batch)
-      net_result = output[0].clone().detach().squeeze().cpu().numpy() > threshold 
-      net_result = Image.fromarray(net_result).resize((608,608))   
-      results.append(np.array(net_result))
-    
-    masks_to_submission(prefix, submission_filename, results, image_names)
       
 
 def see_result_on_test_set(net, prefix, compare=False, threshold=0.5 ):
@@ -471,7 +395,7 @@ def f1_loss(actual, prediction):
     
     return 1 - f1
 
-def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_train, path_to_models, min_train_f1 = 0.80, min_test_f1 = 0.80):
+def save_if_best_model(net, contender_validation_loss, path_to_models, min_validation_loss=1):
   """Saves model only if specific conditions are obtained:
       train f1 and test f1 needs to be atleast a minimum value and also beat the previous f1 test.
 
@@ -485,13 +409,13 @@ def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_t
         min_test_f1: constraint on the minimum value you want the network to score on the training set
 
     """
-  if contender_f1_train > min_train_f1 and contender_f1_test > last_best_f1_test and contender_f1_test > min_test_f1:
+  if contender_validation_loss < min_validation_loss:
     # save net 
     torch.save(net.state_dict(), path_to_models+'/best_model.pt')
     # if model beats the last f1 test then return the new best test f1
-    return contender_f1_test
+    return contender_validation_loss
   # if model does not beat the last one return the last f1  
-  return last_best_f1_test
+  return min_validation_loss
 
 def see_result(loader, net, threshold=0.5, proba=False):
   """Computes the result of the network on one random input image and compares it to the actual required result
