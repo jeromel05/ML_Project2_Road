@@ -15,10 +15,7 @@ from database import *
 from network import *
 import re
 import glob
-random.seed(1)
-np.random.seed(1)
-torch.manual_seed(1)
-torch.cuda.manual_seed(1)
+
 
 torch.set_default_tensor_type(torch.cuda.FloatTensor)
 torch.backends.cudnn.benchmark=True

@@ -144,3 +144,15 @@ def load_dataset(path, training, list_of_transforms, batch_size=8, forced_transf
     )
     return loader
 
+def load_dataset_patches(path, training, list_of_transforms, batch_size=8, forced_transform=None):
+
+    dataset = Road_Segmentation_Database(path, training, list_of_transforms, forced_transform=forced_transform)
+
+    loader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=0
+    )
+    return loader
+
