@@ -23,6 +23,130 @@ torch.cuda.manual_seed(1)
 torch.set_default_tensor_type(torch.cuda.FloatTensor)
 torch.backends.cudnn.benchmark=True
 
+from scipy.ndimage import rotate
+
+def multi_decision(net, np_image, threshold=0.5):
+  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
+  
+    Args:
+        net: the network you use for the prediction
+        np_image: image you want to test
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+    Returns:
+        four decisions computed from the four rotations of the image by the network in the correct orientation
+  """
+  rotations = []
+  for i in range(4):
+    rotated_image = rotate(np_image, i*90)
+    rotations.append(rotated_image)
+
+  for i in range(4):
+    inputs = transforms.ToTensor()(rotations[i]).unsqueeze(0).cuda()
+    output = net(inputs)
+    net_result = nn.Sigmoid()(output) if threshold == 0 else output
+    rotations[i] = (net_result.detach().squeeze().cpu() > 0.5).float()
+    
+  for i in range(4):
+    rotations[i] = rotate(rotations[i], -i*90)
+
+  return rotations
+
+def append_channel(image_tensor, channel_tensor):
+  """Appends a channel to an image
+    Args:
+        image_tensor: tensor of the image 3 400 400
+        channel: the tensor of the channel you want to append 1 400 400
+
+    Returns:
+        the image with the appended channel 4 400 400
+  """
+  # now we can stack
+  return torch.cat([image_tensor, channel_tensor], dim=0)  # 4 400 400
+
+def decide(net, np_image, decider,threshold=0.5):
+  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
+  
+    Args:
+        net: the network you use for the prediction
+        np_image: image you want to test
+        decider: decide logic function needs to return an image and input a list of decisions
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+    Returns:
+        decision for this image
+  """
+  list_of_decisions = multi_decision(net, np_image, threshold)
+  return decider(list_of_decisions)
+
+def print_statistic(cur_train_loss, cur_test_loss, trainingLoss, validationLoss, time_interval="epoch"):
+  """Prints the statis
+  
+    Args:
+        cur_train_loss: current train loss of the network
+        cur_test_loss: current test loss of the network
+        trainingLoss: array of all previous train losses
+        validationLoss: array of all previous validation losses
+
+  """
+  print("Current training loss is " + str(train_running_loss/trainDataSize))
+  print("Current test loss is " + str(test_running_loss/testDataSize))
+  print("Current f1_score for training is " + str(train_running_f1/trainDataSize))
+  print("Current f1_score for test is " + str(test_running_f1/testDataSize))
+  plt.title("Training loss against validation loss per " + time_interval)
+  plt.plot(trainingLoss[:], label='Training loss')
+  plt.plot(validationLoss[:], label='Validation loss')
+  plt.legend(frameon=False)
+  plt.show()
+  plt.title("Training loss against validation loss per " + time_interval)
+  plt.plot(training_f1[:], label='Training F1_score')
+  plt.plot(validation_f1[:], label='Validation F1_score')
+  plt.legend(frameon=False)
+  plt.show()
+
+
+
+def decide_simple(list_of_decisions):
+  """Return the decision of the reference image (without rotation)
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+
+  return list_of_decisions[0]
+
+def decide_or_logic(list_of_decisions):
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+  decision = np.zeros(list_of_decisions[0].shape)
+  for vote in list_of_decisions:
+    decision = decision + vote
+
+  return decision >= 1
+
+def decide_and_logic(list_of_decisions):
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+  decision = np.ones(list_of_decisions[0].shape)
+  for vote in list_of_decisions:
+    decision = decision * vote
+
+  return decision == 1
+
+def decide_majority_logic(list_of_decisions):
+  """Decides with a list of decisions for each pixel vote what the pixel should be
+    Args:
+      list_of_decisions: all the decisions the network has provided
+  """
+  decision = np.zeros(list_of_decisions[0].shape)
+  for vote in list_of_decisions:
+    decision = decision + vote
+
+  return decision >= len(list_of_decisions)//2 + 1
+
 def find_mean_std(test_images):
     """Finds mean and std of images (UNUSED and probably false too don't use) """
       # find mean
@@ -60,8 +184,7 @@ def get_padding(kernel_size = 3, dilation = 1):
   """
   return (kernel_size-1)//2 * dilation
 
-
-def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True ):
+def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, patch=True, net_size=(400,400) , decider=decide_simple):
   """ Saves all results of the net on the test set in the drive
 
     Args:
@@ -78,25 +201,18 @@ def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, 
     satelite_images_path = prefix + 'test_set_images'
     image_names = glob.glob(satelite_images_path + '/*/*.png')
     test_images = list(map(Image.open, image_names))
-    transformX = transforms.Compose([
-    transforms.ToTensor(), # transform to range 0 1
-    ])
 
     for i, image_test in enumerate(test_images):
 
-      image = transforms.Resize((400,400))(image_test)
-      image_batch = transformX(image)
-      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
-      output = net(image_batch)
-      net_result = nn.Sigmoid()(output) if threshold == 0 else output
-      net_result = net_result[0].clone().detach().squeeze().cpu().numpy()
+      image = transforms.Resize(net_size)(image_test)
+      # make decision
+      net_result = decide(net, np.array(image), decider, threshold)
       net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
       net_result = (net_result*255).astype("uint8")
-      net_result = net_result.reshape((400,400))
+      net_result = net_result.reshape(net_size)
       net_result = convert_1_to_3_channels(net_result)
       net_result = Image.fromarray(net_result).resize((608,608))
       net_result = np.array(net_result)
-      
       if compare:
         net_result = Image.fromarray(np.hstack([image_test, net_result]))
       else:    
@@ -104,6 +220,82 @@ def save_all_results(net, prefix, path_to_results, threshold=0.5,compare=False, 
 
       net_result.save(path_to_results+"test_image_" + str(int(re.search(r"\d+", image_names[i]).group(0))) + ".png", "PNG")
 
+
+def mask_to_submission_strings(image, img_number):
+    """Reads a single image and outputs the strings that should go into the submission file
+
+    Args:
+        image: one image to convert to string format
+        img_number: the corresponding number in the test set
+
+    """
+    patch_size = 16
+    for j in range(0, image.shape[1], patch_size):
+        for i in range(0, image.shape[0], patch_size):
+            patch = image[i:i + patch_size, j:j + patch_size]
+            label = patch_to_label(patch)
+            yield("{:03d}_{}_{},{}".format(img_number, j, i, label))
+
+
+def masks_to_submission(prefix, submission_filename, images, image_names):
+	"""Converts images into a submission file
+
+    Args:
+        prefix: the prefix to the google colab 
+        submission_filename: the name of the submission file
+        images: all images you want to convert
+        image_names: all images name in the same order than their corresponding images you want to convert
+
+  """
+	with open(prefix + 'results/' +submission_filename, 'w') as f:
+		f.write('id,prediction\n')
+		# order images
+		image_in_order = np.zeros(np.array(images).shape)
+		for i,name in enumerate(image_names):  
+			image_nb = int(re.search(r"\d+", name).group(0))
+			image_in_order[image_nb - 1][:][:] = images[i]
+
+		for i in range(image_in_order.shape[0]):  
+			image = image_in_order[i][:][:]
+			f.writelines('{}\n'.format(s) for s in mask_to_submission_strings(image, i+1))
+
+def get_submission(net, prefix, submission_filename, threshold=0.5):
+  """Converts test set into a submission file in the results google drive folder
+
+    Args:
+        net: net you want to create the submission with
+        prefix: the prefix to the google colab 
+        submission_filename: the name of the submission file
+        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
+
+  """
+  results = []
+  net.eval()
+  with torch.no_grad():
+
+    # find all file names
+    satelite_images_path = prefix + 'test_set_images'
+    image_names = glob.glob(satelite_images_path + '/*/*.png')
+
+    # get all images
+    test_images = list(map(Image.open, image_names))
+    transformX = transforms.Compose([
+      transforms.ToTensor(), # transform to range 0 1
+    ])
+
+    for i, image in enumerate(test_images):
+
+      # images are 608*608 so we need to resize to fit network
+      image = transforms.Resize((400,400))(image)
+      image_batch = transformX(image)
+      image_batch = torch.from_numpy(np.array(image_batch)).unsqueeze(0).cuda()
+      output = net(image_batch)
+      net_result = output[0].clone().detach().squeeze().cpu().numpy() > threshold 
+      net_result = Image.fromarray(net_result).resize((608,608))   
+      results.append(np.array(net_result))
+    
+    masks_to_submission(prefix, submission_filename, results, image_names)
+      
 
 def see_result_on_test_set(net, prefix, compare=False, threshold=0.5 ):
     """ Calculates one random test images result and compares it to the actual image if required
@@ -184,32 +376,6 @@ def convert_1_to_3_channels(image):
     stacked_img = np.stack((image,)*3, axis=-1)
     return stacked_img    
     
-
-
-# adapted from pytorch doc
-class RotationTransform:
-    """Rotate by a given angles."""
-
-    def __init__(self, angle):
-        self.angle = angle
-
-    def __call__(self, x):
-
-        return TF.rotate(x, self.angle)
-
-class CropResizeTransform:
-    """Rotate by a given angles if do is set to true."""
-    def __init__(self, top, left, height, width, do):
-        self.top = top
-        self.left = left
-        self.height = height
-        self.width = width
-        self.do = do
-    def __call__(self, x):
-        if self.do:
-          x = TF.resized_crop(x, self.top, self.left, self.height, self.width, (400,400))
-
-        return x
 
 def tensor_to_PIL(tensor):
 	"""Transforms tensor to PIL image. This multiplies the tensor by 255 and converts to RGB"""
@@ -368,105 +534,9 @@ def see_result(loader, net, threshold=0.5, proba=False):
   compare = np.hstack([image, groundtruth, net_result])
   return Image.fromarray(compare)
 
-from scipy.ndimage import rotate
-
-def multi_decision(net, np_image, threshold=0.5):
-  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
-  
-    Args:
-        net: the network you use for the prediction
-        np_image: image you want to test
-        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
-
-    Returns:
-        four decisions computed from the four rotations of the image by the network in the correct orientation
-  """
-  np_image = np.moveaxis(np_image, 0, 2)
-  rotations = []
-  for i in range(4):
-    rotated_image = rotate(np_image, i*90)#np.rot90(np_image, k=i+1)
-    rotated_image = np.moveaxis(rotated_image, 2, 0)
-    rotations.append(rotated_image)
-
-  for i in range(4):
-    rotations[i] = torch.from_numpy(rotations[i].copy())
-
-  for i in range(4):
-    rotations[i] = (net(rotations[i].unsqueeze(0).cuda()).detach().squeeze().cpu() > threshold).float()
-    
-  for i in range(4):
-    rotations[i] = np.array(TF.rotate(transforms.ToPILImage()(rotations[i]).convert("L"), -i*90))>128
-
-  return rotations
-
-def append_channel(image_tensor, channel_tensor):
-  """Appends a channel to an image
-    Args:
-        image_tensor: tensor of the image 3 400 400
-        channel: the tensor of the channel you want to append 1 400 400
-
-    Returns:
-        the image with the appended channel 4 400 400
-  """
-  # now we can stack
-  return torch.cat([image_tensor, channel_tensor], dim=0)  # 4 400 400
-
-def decide(net, np_image, decider,threshold=0.5):
-  """Computes a decision of the network of one image with its four rotations and then outputs the four decisions in the correct orientation.
-  
-    Args:
-        net: the network you use for the prediction
-        np_image: image you want to test
-        decider: decide logic function needs to return an image and input a list of decisions
-        threshold: if you BCEWithLogits loss use 0 otherwise use 0.5
-
-    Returns:
-        decision for this image
-  """
-  list_of_decisions = multi_decision(net, np_image, threshold)
-  return decider(list_of_decisions)
 
 
-def decide_simple(list_of_decisions):
-  """Return the decision of the reference image (without rotation)
-    Args:
-      list_of_decisions: all the decisions the network has provided
-  """
 
-  return list_of_decisions[0]
-
-def decide_or_logic(list_of_decisions):
-  """Decides with a list of decisions for each pixel vote what the pixel should be
-    Args:
-      list_of_decisions: all the decisions the network has provided
-  """
-  decision = np.zeros(list_of_decisions[0].shape)
-  for vote in list_of_decisions:
-    decision = decision + vote
-
-  return decision >= 1
-
-def decide_and_logic(list_of_decisions):
-  """Decides with a list of decisions for each pixel vote what the pixel should be
-    Args:
-      list_of_decisions: all the decisions the network has provided
-  """
-  decision = np.ones(list_of_decisions[0].shape)
-  for vote in list_of_decisions:
-    decision = decision * vote
-
-  return decision == 1
-
-def decide_majority_logic(list_of_decisions):
-  """Decides with a list of decisions for each pixel vote what the pixel should be
-    Args:
-      list_of_decisions: all the decisions the network has provided
-  """
-  decision = np.zeros(list_of_decisions[0].shape)
-  for vote in list_of_decisions:
-    decision = decision + vote
-
-  return decision >= len(list_of_decisions)//2 + 1
   
 
   
