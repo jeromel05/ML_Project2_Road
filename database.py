@@ -103,7 +103,7 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
 
         # transform from numpy to PIL image
         imgX = Image.fromarray(imgX)
-        imgY = Image.fromarray(imgY)
+        imgY = Image.fromarray((imgY > 150).astype(np.float64)*255)
 
         # do transform do be done on both train and test
         if self.forced_transform is not None:
