@@ -104,31 +104,31 @@ def print_statistic(cur_train_loss, cur_test_loss, trainingLoss, validationLoss,
   plt.legend(frameon=False)
   plt.show()
 
-def calculate_f1_and_loss_on_validation(testloader, threshold)
-    net.eval()
-    # make sure we don't save the gradients when getting stats so we don't train on validation set
-    with torch.no_grad():
-    for i, data in enumerate(testloader, 0):
+# def calculate_f1_and_loss_on_validation(testloader, threshold):
+#     net.eval()
+#     # make sure we don't save the gradients when getting stats so we don't train on validation set
+#     with torch.no_grad():
+#     for i, data in enumerate(testloader, 0):
 
-      # get the inputs
-      inputs, trueImage = data
+#       # get the inputs
+#       inputs, trueImage = data
 
-      # cuda them
-      if torch.cuda.is_available():
-          inputs = inputs.cuda()
-          trueImage = trueImage.cuda()
+#       # cuda them
+#       if torch.cuda.is_available():
+#           inputs = inputs.cuda()
+#           trueImage = trueImage.cuda()
 
-      # forward and test
+#       # forward and test
 
-      outputs = net(inputs)
-      loss = criterion(outputs, trueImage)
+#       outputs = net(inputs)
+#       loss = criterion(outputs, trueImage)
 
-      # save statistics
-      validation_running_loss += loss.item()
-      validation_running_f1 += f1(trueImage.bool(), outputs.clone() > threshold).item()
+#       # save statistics
+#       validation_running_loss += loss.item()
+#       validation_running_f1 += f1(trueImage.bool(), outputs.clone() > threshold).item()
         
-    size_validation = len(testloader)
-    return validation_running_loss/size_validation , validation_running_f1/size_validation
+#     size_validation = len(testloader)
+#     return validation_running_loss/size_validation , validation_running_f1/size_validation
 
 def decide_simple(list_of_decisions):
   """Return the decision of the reference image (without rotation)
@@ -517,7 +517,7 @@ def save_if_best_model(net, last_best_f1_test, contender_f1_test, contender_f1_t
   # if model does not beat the last one return the last f1  
   return last_best_f1_test
 
-def see_result(loader, net, threshold=0.5, proba=False):
+def see_result(loader, net, threshold=0.5, proba=False, resize=(400,400)):
   """Computes the result of the network on one random input image and compares it to the actual required result
 
     Args:
@@ -548,8 +548,8 @@ def see_result(loader, net, threshold=0.5, proba=False):
   groundtruth = (groundtruth*255).astype("uint8")
   net_result = (net_result*255).astype("uint8")
 
-  groundtruth = groundtruth.reshape((400,400))
-  net_result = net_result.reshape((400,400))
+  groundtruth = groundtruth.reshape(resize)
+  net_result = net_result.reshape(resize)
   # print(net_result)
 
   groundtruth = convert_1_to_3_channels(groundtruth)

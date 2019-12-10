@@ -103,7 +103,7 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
 
         # transform from numpy to PIL image
         imgX = Image.fromarray(imgX)
-        imgY = Image.fromarray((imgY > 150).astype(np.float64)*255)
+        imgY = Image.fromarray(imgY)
 
         # do transform do be done on both train and test
         if self.forced_transform is not None:
@@ -120,11 +120,14 @@ class Road_Segmentation_Database(torch.utils.data.Dataset):
         tensorX = transform(imgX)
         tensorY = transform(imgY)
 
+        # fix bug where white becomes less than 255
+        tensorY = (tensorY.numpy() > 0.5).astype(np.float64)
+        tensorY = torch.as_tensor(tensorY)
+
         # send to GPU if it exists
         if torch.cuda.is_available():
             tensorX = tensorX.cuda()
             tensorY = tensorY.cuda()
-
         return (tensorX, tensorY)
  
     def __len__(self):
