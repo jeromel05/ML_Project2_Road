@@ -353,7 +353,7 @@ def see_result(loader, net, proba=False, net_size=(400,400)):
 
     return Image.fromarray(compare)
 
-def plot_Analyze(data_for_graph):
+def plot_analyze(data_for_graph):
     """Plots three graphs comparing train and loss: accuracy, loss, validation
 
         Args:
