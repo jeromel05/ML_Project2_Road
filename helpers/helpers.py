@@ -291,11 +291,11 @@ def see_result_on_test_set(net, prefix, compare=False, net_size=(400,400) ):
         the PIL image of either the result or the result with its base input
 
     """
-    
-    satelite_images_path = prefix + 'test_set_images'
 
+    satelite_images_path = prefix + 'test_set_images'
+    test_images = glob.glob(satelite_images_path + '/*/*.png')
     rdm_index = np.random.randint(len(test_images))
-    image = Image.open(glob.glob(satelite_images_path + '/*/*.png')[rdm_index])
+    image = Image.open([rdm_index])
 
     image = image.resize(net_size)
     image_batch = to_single_batch(image)
