@@ -20,7 +20,7 @@ from keras import backend as K
 
 class Road_Segmentation_Database(utl.Sequence):
     """Road Segmentation database. Reads a h5 for performance. Caches the whole h5 and performs transformations on the images."""
-    def __init__(self, thing, training, list_of_transforms, forced_transform=None):
+    def __init__(self, thing, training, batchsize=None, list_of_transforms =[], forced_transform=None):
         super(Road_Segmentation_Database, self).__init__()
         self.hf_path = thing
         self.hf = h5py.File(self.hf_path, 'r')    
@@ -32,6 +32,11 @@ class Road_Segmentation_Database(utl.Sequence):
 
         else:
             self.sizeTrain = len(self.hf['test'])
+
+        if batchsize is None:
+            batchsize = self.sizeTrain
+
+        self.indexes = 
 
     def __getitem__(self, index):
     
@@ -46,8 +51,8 @@ class Road_Segmentation_Database(utl.Sequence):
             imgY = hfFile['test_groundtruth'][index, ...]
 		
         imgY = imgY.reshape((*imgY.shape, 1))
-        imgX = np.expand_dims(imgX, axis=0)
-        imgY = np.expand_dims(imgY, axis=0)
+        imgX = np.to_batch(imgX)
+        imgY = np.to_batch(imgY)
 
 
         return (imgX/255, imgY > 50)
@@ -55,3 +60,10 @@ class Road_Segmentation_Database(utl.Sequence):
     def __len__(self):
         
         return self.sizeTrain 
+
+class Shuffle_Batches(keras.callbacks.Callback):
+    def on_train_begin(self, logs={}):
+        self.losses = []
+
+    def on_batch_end(self, batch, logs={}):
+        self.losses.append(logs.get('loss'))

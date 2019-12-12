@@ -18,6 +18,8 @@ from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from keras import backend as K
 from scipy.ndimage import rotate
+import re
+import glob
 
 
 def to_single_batch(numpy_array):
@@ -222,7 +224,7 @@ def save_all_results(net, prefix, path_to_results, compare=False, patch=True, ne
 
     for i, image_test in enumerate(test_images):
 
-        image = transforms.Resize(net_size)(image_test)
+        image = image_test.resize(net_size)
         # make decision
         net_result = decide(net, np.array(image), decider)
         net_result = transform_to_patch_format(net_result) if patch else net_result # do we want to see patches or a grayscale representation of probabilities
