@@ -11,15 +11,14 @@ import skimage.transform as trans
 import numpy as np
 import keras.utils as utl
 from database import *
-from network import *
+from networks import *
 from keras.models import *
 from keras.layers import *
 from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from keras import backend as K
 from scipy.ndimage import rotate
-from numpy.random import seed
-from tensorflow import set_random_seed
+
 
 def to_single_batch(numpy_array):
     """Transform numpy array to corresponding single batch
@@ -56,10 +55,10 @@ def recall_m(y_true, y_pred):
         the recall of the network
 
     """
-	true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-	possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-	recall = true_positives / (possible_positives + K.epsilon())
-	return recall
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    recall = true_positives / (possible_positives + K.epsilon())
+    return recall
 
 def precision_m(y_true, y_pred):
     """Returns the precision considering a prediction and a groundtruth
@@ -118,7 +117,7 @@ def multi_decision(net, np_image, threshold=0.5):
 
   return rotations
 
-  def decide_simple(list_of_decisions):
+def decide_simple(list_of_decisions):
   """Return the decision of the reference image (without rotation)
 
     Args:
@@ -128,7 +127,6 @@ def multi_decision(net, np_image, threshold=0.5):
         the final decision aka the prediction of the network
 
   """
-
   return list_of_decisions[0]
 
 def decide_or_logic(list_of_decisions):
@@ -355,12 +353,37 @@ def see_result(loader, net, proba=False, net_size=(400,400)):
 
     return Image.fromarray(compare)
 
-def set_seeds(seeding=1):
-    """Set the seed of randomness. Note that the seeds are chosen to be seeding and seeding*42 
+def plot_Analyze(data_for_graph):
+    """Plots three graphs comparing train and loss: accuracy, loss, validation
 
         Args:
-            seeding: seed you choose
-
+            data_for_graph: historic of training
+            
     """
-    seed(seeding) # random seed
-    set_random_seed(seeding*42) # tensorflow seed (we use tf backend)
+    # Plot training & validation accuracy values
+    plt.plot(data_for_graph.history['acc'])
+    plt.plot(data_for_graph.history['val_acc'])
+    plt.title('Model accuracy')
+    plt.ylabel('Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.show()
+
+    # Plot training & validation loss values
+    plt.plot(data_for_graph.history['loss'])
+    plt.plot(data_for_graph.history['val_loss'])
+    plt.title('Model loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.show()
+
+    # Plot training & validation f1 values
+    plt.plot(data_for_graph.history['f1_m'])
+    plt.plot(data_for_graph.history['val_f1_m'])
+    plt.title('F1')
+    plt.ylabel('F1')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.show()
+

@@ -10,7 +10,7 @@ import skimage.io as io
 import skimage.transform as trans
 import numpy as np
 import keras.utils as utl
-from network import *
+from networks import *
 from helpers import *
 from keras.models import *
 from keras.layers import *
