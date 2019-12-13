@@ -59,9 +59,9 @@ class Road_Segmentation_Database(utl.Sequence):
         
         return self.sizeTrain 
 
-class Shuffle_Batches(keras.callbacks.Callback):
-    def on_train_begin(self, logs={}):
-        self.losses = []
+# class Shuffle_Batches(keras.callbacks.Callback):
+#     def on_train_begin(self, logs={}):
+#         self.losses = []
 
-    def on_batch_end(self, batch, logs={}):
-        self.losses.append(logs.get('loss'))
+#     def on_batch_end(self, batch, logs={}):
+#         self.losses.append(logs.get('loss'))
