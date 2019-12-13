@@ -368,7 +368,7 @@ def plot_analyze(data_for_graph):
     plt.title('Model accuracy')
     plt.ylabel('Accuracy')
     plt.xlabel('Epoch')
-    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.legend(['Train', 'Validation'], loc='upper left')
     plt.show()
 
     # Plot training & validation loss values
@@ -377,15 +377,15 @@ def plot_analyze(data_for_graph):
     plt.title('Model loss')
     plt.ylabel('Loss')
     plt.xlabel('Epoch')
-    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.legend(['Train', 'Validation'], loc='upper left')
     plt.show()
 
     # Plot training & validation f1 values
     plt.plot(data_for_graph.history['f1_m'])
     plt.plot(data_for_graph.history['val_f1_m'])
-    plt.title('F1')
+    plt.title('Model F1')
     plt.ylabel('F1')
     plt.xlabel('Epoch')
-    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.legend(['Train', 'Validation'], loc='upper left')
     plt.show()
 
