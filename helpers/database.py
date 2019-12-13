@@ -36,8 +36,6 @@ class Road_Segmentation_Database(utl.Sequence):
         if batchsize is None:
             batchsize = self.sizeTrain
 
-        self.indexes = 
-
     def __getitem__(self, index):
     
         hfFile = self.hf   
