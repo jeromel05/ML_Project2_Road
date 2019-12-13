@@ -302,7 +302,7 @@ def see_result_on_test_set(net, prefix, compare=False, net_size=(400,400) ):
     image = image.resize(net_size)
     image_batch = to_single_batch(image)
     output = net.predict(image_batch)
-    net_result = from_single_batch(output) > 0.5
+    net_result = from_single_batch(output)
     net_result = transform_to_patch_format(net_result)
     net_result = (net_result*255).astype("uint8")   
     net_result = net_result.reshape((400,400))
