@@ -49,8 +49,8 @@ class Road_Segmentation_Database(utl.Sequence):
             imgY = hfFile['test_groundtruth'][index, ...]
 		
         imgY = imgY.reshape((*imgY.shape, 1))
-        imgX = to_batch(imgX)
-        imgY = to_batch(imgY)
+        imgX = to_single_batch(imgX)
+        imgY = to_single_batch(imgY)
 
 
         return (imgX/255, imgY > 50)
