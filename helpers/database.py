@@ -17,16 +17,17 @@ from keras.layers import *
 from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from keras import backend as K
+from skimage.transform import resize
 
 class Road_Segmentation_Database(utl.Sequence):
     """Road Segmentation database. Reads a h5 for performance. Caches the whole h5 and performs transformations on the images."""
-    def __init__(self, thing, training, batchsize=None, list_of_transforms =[], forced_transform=None):
+    def __init__(self, thing, training, batchsize=None, input_size=(400,400), output_size=(400,400)):
         super(Road_Segmentation_Database, self).__init__()
         self.hf_path = thing
         self.hf = h5py.File(self.hf_path, 'r')    
         self.training = training
-        self.list_of_transforms = list_of_transforms
-        self.forced_transform = forced_transform
+        self.input_size = input_size
+        self.output_size = output_size
         if self.training:
             self.sizeTrain = len(self.hf['train'])
 
@@ -48,12 +49,18 @@ class Road_Segmentation_Database(utl.Sequence):
             imgX = hfFile['test'][index, ...]
             imgY = hfFile['test_groundtruth'][index, ...]
 		
+
+        imgX = resize(imgX, (*self.input_size,3)) # divides per 255
+        imgY = resize(imgY, (self.output_size)) # divides per 255
+
+
+
         imgY = imgY.reshape((*imgY.shape, 1))
         imgX = to_single_batch(imgX)
         imgY = to_single_batch(imgY)
 
 
-        return (imgX/255, imgY > 50)
+        return (imgX, imgY > 0.5)
  
     def __len__(self):
         

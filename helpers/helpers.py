@@ -305,7 +305,7 @@ def see_result_on_test_set(net, prefix, compare=False, net_size=(400,400) ):
     net_result = from_single_batch(output)
     net_result = transform_to_patch_format(net_result)
     net_result = (net_result*255).astype("uint8")   
-    net_result = net_result.reshape((400,400))
+    net_result = net_result.reshape(net_size)
     net_result = convert_1_to_3_channels(net_result)
 
     if compare:
