@@ -43,7 +43,8 @@ The folders are organized this way :
          
 The src folder contains the main python file "run.py" that yields a .csv file with our best predictions
 You can find all the neural networks in the path : /ML_Project2_Road/scripts/utilities/network.py.  
-The other files in the folder utilities are all the functions we used to modularize the code in the project.  
+The other files in the folder utilities are all the functions we used to modularize the code in the project.
+The 'models' and 'results' are just empty folders you have to create in order to save files later.
 
 ## Guide to use the google colab
 If you do not have acces to a GPU, we also have a repository in Google Colab where a GPU is accessible, all the data files are already uploaded
