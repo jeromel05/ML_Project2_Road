@@ -5,7 +5,9 @@ from skimage.util.shape import view_as_windows
 import os
 import matplotlib.image as mpimg
 import scipy
-import masks_to_submission as msk
+import mask_to_submission as msk
+import keras.preprocessing.image as kerasimg
+import glob
 
 def make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16):
 	"""Tranforms a list of paimages into a list of patches of images
@@ -29,19 +31,19 @@ def make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16):
 	return img_patches, gt_patches
 
 
-def load_data(path_prefix):
+def load_data(root_dir):
 	""" Loads the images as a list
 		Args: 
-			path_prefix: The path to the project repository
+			root_dir: The path to the project repository
 		Return:
 			imgs: list of images
 			gt_imgs: list of groundtruth images 
 	"""
-	root_dir = prefix + "data/training/"
-
+	
 	image_dir = root_dir + "images/"
 	files = os.listdir(image_dir)
 	n = len(files) # Load all 100 images
+	n=1
 	print("Loading " + str(n) + " images")
 	imgs = [mpimg.imread(image_dir + files[i]) for i in range(n)]
 
@@ -322,7 +324,7 @@ def predict_with_patches(net, image, patch_size, stride, output_img_size = (608,
 	return net_result
 
 
-def save_all_results_patches(path_to_results, net, patch_size, stride, glob_remove = False, threshold = 100):
+def save_all_results_patches(path_to_data, path_to_results, net, patch_size, stride, glob_remove = False, threshold = 100):
 	"""
 	Computes all the predcitions on the test set and saves them to a results folder
 	Args:
@@ -333,8 +335,8 @@ def save_all_results_patches(path_to_results, net, patch_size, stride, glob_remo
 		glob_remove: wether to remove small objects
 		threshold: threshold to be used for small objects removal
 	"""
-	satelite_images_path = prefix + 'test_set_images'
-	test_paths = glob.glob(satelite_images_path + '/*/*.png')
+	test_images_path = path_to_data + 'test_set_images'
+	test_paths = glob.glob(test_images_path + '/*/*.png')
 
 	test_images = list(map(mpimg.imread, test_paths.copy()))
 

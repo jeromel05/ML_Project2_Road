@@ -16,31 +16,38 @@ import os, sys
 import re
 import glob
 import scipy.ndimage
+import h5py
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import mask_to_submission as msk
 
 from PIL import Image
 from keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
 from keras.layers import Dropout, Conv2D, UpSampling2D, MaxPooling2D
-from keras.models import compile, fit, fit_generator, predict, predict_generator
+from keras.models import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau, EarlyStopping, TerminateOnNaN
 
 from keras import backend as K
+
+sys.path.insert(1, '../utilities')
+import mask_to_submission as msk
 import helpers as hlp
-import networks as ntw
+import network as ntw
 
 
-def main():
+def main(argv):
+	pre_loaded_weights = False
+	if(len(sys.argv) > 1):
+		pre_loaded_weights = True
 	# Paths for data and models
-	path_to_models = prefix + 'models/jerome/'
-	path_to_results = prefix + "results/jerome/"
+	path_to_data = '../../data/'
+	path_to_models =  path_to_data + 'models/'
+	path_to_results = path_to_data + 'results/'
 
 	# Load all images
-	imgs, gt_images = hlp.load_data(prefix)
+	imgs, gt_imgs = hlp.load_data(path_to_data + 'training/')
 
 	#create overlapping 128x128 patches
 	img_patches, gt_patches = hlp.make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16)
@@ -62,20 +69,24 @@ def main():
 		early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1, mode='min', restore_best_weights=True)
 		reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.4, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=2, min_lr=0) 
 	
-		data_for_graph = model.fit_generator(train_generator, steps_per_epoch=int(img_patches.shape[0] * 0.8 / 32), \
-                            epochs=200, callbacks=[model_checkpoint, reduce_lr, terminate, early_stop], validation_data=test_generator, \
-                            validation_steps= int(img_patches.shape[0] * 0.2 / 32)+1, validation_freq=1)
+		data_for_graph = model.fit_generator(train_generator, steps_per_epoch = np.ceil(img_patches.shape[0] * 0.8 / 32), \
+                            epochs=1, callbacks=[model_checkpoint, reduce_lr, terminate, early_stop], validation_data=test_generator, \
+                            validation_steps= np.ceil(img_patches.shape[0] * 0.2 / 32), validation_freq=1)
 	else:
 		dependencies = {
-		'f1_m': f1_m,
-		'precision_m': precision_m,
-		'recall_m': recall_m,
+		'f1_m': hlp.f1_m,
+		'precision_m': hlp.precision_m,
+		'recall_m': hlp.recall_m,
 		}
 
 		model = load_model(path_to_models + 'keras_model_patch128_final.hdf5', custom_objects=dependencies)
 
 	#saves all the 50 predictions on the test set in the results folder
-	hlp.save_all_results_patches(path_to_results, net, patch_size=128, stride=8, glob_remove=False,threshold=16*16)
+	hlp.save_all_results_patches(path_to_data, path_to_results, model, patch_size=128, stride=8, glob_remove=False,threshold=16*16)
 
 	#Create submission csv on the test set
 	hlp.create_sumbmission()
+
+
+if __name__== "__main__" :
+	main(sys.argv[1:])

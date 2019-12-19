@@ -112,3 +112,4 @@ venv.bak/
 Datasets/grid.jpg
 src/houghlines3.jpg
 src/houghlines5.jpg
+data/models/keras_model_patch128_final.hdf5
