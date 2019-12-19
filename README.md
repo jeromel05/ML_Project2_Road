@@ -20,11 +20,15 @@ If you do not want to use a weights file, just run it without any arguments.
 ```python
 python run.py
 ```
-The weights file is available at: [link](https://www.a)
+The weights file can be accessed via two different ways:   
+    - Log in the following Google account: username: jean.berrrrard@gmail.com password: 123machinelearning    
+    - Follow the shared [link](https://drive.google.com/open?id=1zwEvRAaReWuBGjuhLPkGcYQFkfcgHnts) that gives you access to the google             drive folder named Road Segmentation  
+    The file is located at: Colab Notebooks/road_segamentation/models/saved_net/keras_patch128_new1.hdf5  
 
 ### Prerequisites
 In order to be able to run the code, you should have Python3 installed, the installation of Anaconda is also recommended,
 and the following libraries should be installed:
+
 - numpy: to manipulate arrays
 - h5py: to save files in this format
 - glob
@@ -35,9 +39,11 @@ and the following libraries should be installed:
 - sklearn: for train / validation splitting
 - tensorflow version=1: the framework Keras is based on
 
+
 ## Folder plan 
 You should put the downoaded files in a new folder 'data' in the folder 'ML_Project2_Road'. 
 The folders are organized this way : 
+
 
 - ML_Project2_Road
     - project1_description.pdf
@@ -57,18 +63,19 @@ The other files in the folder utilities are all the functions we used to modular
 The 'models' and 'results' are just empty folders you have to create in order to save files later.  
 If a weights file is to be used, it has to be placed in the models folder.
 
+
 ## Guide to use the google colab
 If you do not have acces to a GPU, we also have a repository in Google Colab where a GPU is accessible, all the data files are already uploaded
-and the libraries are already pre-installed.
-To have the exact environment we used to train the network you can use our google colab code. Here are the steps you need to follow
-
-1: follow the share link : "https://drive.google.com/open?id=1zwEvRAaReWuBGjuhLPkGcYQFkfcgHnts"    
-2: locate the previously shared folder "road segmentation project" in "Shared with me" on your google drive.  
-3 (optional): if you never have created a google colabotary file you need to:  
-  3.1: head to https://colab.research.google.com/ and create a "new notebook in python 3"  
-4: head to your drive and locate the folder "road segmentation project" you just added.  
-5: add the "road segmentation project" folder to the folder "Colab Notebooks" of your drive (added in step 3.1 or already there if you previously created a google colab)  
-6: open the "road segmentation project" folder and right click the "UNet.ipynb". Select "open with >" and choose "Google Colaboratory"  
-7: You can now follow the instructions in the google colab and run the code cell per cell or just run all cells at once to directly get the results in a .csv format  
+and the libraries are already pre-installed.  
+To have the exact environment we used to train the network you can use our google colab code. You can either you the account provided above or follow these instructions:    
+ 
+    - 1: follow the share [link](https://drive.google.com/open?id=1zwEvRAaReWuBGjuhLPkGcYQFkfcgHnts)  
+    - 2: locate the previously shared folder "road segmentation project" in "Shared with me" on your google drive.  
+    - 3 (optional): if you never have created a google colabotary file you need to:  
+        - 3.1: head to https://colab.research.google.com/ and create a "new notebook in python 3"  
+    - 4: head to your drive and locate the folder "road segmentation project" you just added.  
+    - 5: add the "road segmentation project" folder to the folder "Colab Notebooks" of your drive (added in step 3.1 or already there if            you previously created a google colab)  
+    - 6: open the "road segmentation project" folder and right click the "UNet.ipynb". Select "open with >" and choose "Google                     Colaboratory"  
+    - 7: You can now follow the instructions in the google colab and run the code cell per cell or just run all cells at once to directly get the results in a .csv format  
  
 
