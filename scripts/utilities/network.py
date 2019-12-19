@@ -39,7 +39,6 @@ def up(inputs, conv_to_merge, nb_out_channels, activation_f = 'relu', padding = 
 		Finally performs two convolutions with a driopout in between
 		"""
 		up1 = Conv2D(nb_out_channels, 3, activation = activation_f, padding = padding, kernel_initializer = kernel_initializer)(UpSampling2D(size = (2,2))(inputs))
-		print(inputs.shape, up1.shape, "ee")
 		merge1 = concatenate([conv_to_merge,up1], axis = 3)					
 		conv1 = double_conv2d_dropout(merge1, nb_out_channels, activation_f = activation_f, padding = padding, \
 							dilation_rate = dilation_rate, kernel_initializer = kernel_initializer, dropout_rate = dropout_rate)
@@ -88,7 +87,6 @@ def unet_5_layers(pretrained_weights = None, input_size = (128,128,3), nb_out_ch
     conv6 = Conv2D(nb_out_channels*32, 3, activation = activation_f, padding = padding, kernel_initializer = kernel_init)(pool5)
     conv6 = Conv2D(nb_out_channels*32, 3, activation = activation_f, padding = padding, kernel_initializer = kernel_init)(conv6)
     
-    print(conv6.shape, conv5.shape, "ww")
     up6 = up(conv6, conv5, nb_out_channels*16, kernel_size = kernel_init, activation_f = activation_f, padding = padding, \
 						dilation_rate = dilation_rate, kernel_initializer = kernel_init)				
 	
@@ -161,19 +159,15 @@ def unet_4_layers(pretrained_weights = None, input_size = (128,128,3), nb_out_ch
     conv5 = Conv2D(nb_out_channels*16, 3, activation = activation_f, padding = padding, kernel_initializer = kernel_init)(pool4)
     conv5 = Conv2D(nb_out_channels*16, 3, activation = activation_f, padding = padding, kernel_initializer = kernel_init)(conv5)
 	
-    print(conv5.shape, conv4.shape, "ww")
     up6 = up(conv5, conv4, nb_out_channels*8, activation_f = activation_f, padding = padding, \
 						dilation_rate = dilation_rate, kernel_initializer = kernel_init)				
 	
-    print(up6.shape, conv3.shape, "ww")
     up7 = up(up6, conv3, nb_out_channels*4, activation_f = activation_f, padding = padding, \
 						dilation_rate = dilation_rate, kernel_initializer = kernel_init)
 					
-    print(up7.shape, conv2.shape, "ww")	
     up8 = up(up7, conv2, nb_out_channels*2, activation_f = activation_f, padding = padding, \
 						dilation_rate = dilation_rate, kernel_initializer = kernel_init)	
 
-    print(up8.shape, conv1.shape, "ww")							
     up9 = up(up8, conv1, nb_out_channels, activation_f = activation_f, padding = padding, \
 						dilation_rate = dilation_rate, kernel_initializer = kernel_init)	
 											

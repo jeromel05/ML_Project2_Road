@@ -8,6 +8,8 @@ import scipy
 import mask_to_submission as msk
 import keras.preprocessing.image as kerasimg
 import glob
+from PIL import Image
+import re
 
 def make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16):
 	"""Tranforms a list of paimages into a list of patches of images
@@ -43,7 +45,6 @@ def load_data(root_dir):
 	image_dir = root_dir + "images/"
 	files = os.listdir(image_dir)
 	n = len(files) # Load all 100 images
-	n=1
 	print("Loading " + str(n) + " images")
 	imgs = [mpimg.imread(image_dir + files[i]) for i in range(n)]
 
@@ -358,7 +359,7 @@ def create_sumbmission():
 	image_filenames = []
 
 	for i in range(1, 51):
-		image_filename = 'results/test_image_' + '%.1d' % i + '.png'
+		image_filename = '../../data/results/test_image_' + '%.1d' % i + '.png'
 		image_filenames.append(image_filename)
     
 	msk.masks_to_submission(submission_filename, *image_filenames)

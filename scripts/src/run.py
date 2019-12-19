@@ -28,7 +28,6 @@ from sklearn.model_selection import train_test_split
 from keras.layers import Dropout, Conv2D, UpSampling2D, MaxPooling2D
 from keras.models import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau, EarlyStopping, TerminateOnNaN
-
 from keras import backend as K
 
 sys.path.insert(1, '../utilities')
@@ -53,26 +52,29 @@ def main(argv):
 	img_patches, gt_patches = hlp.make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16)
 
 	#splie the data into 80% train and 20% validation sets
-	X_train, X_test, y_train, y_test = train_test_split(img_patches, gt_patches, test_size=0.2, random_state=42)
+	validation_ratio = 0.2
+	X_train, X_test, y_train, y_test = train_test_split(img_patches, gt_patches, test_size = validation_ratio, random_state = 42)
 
 	#create generators that yield batches of 32 patches at a time
 	train_generator, test_generator = hlp.create_train_test_generators(X_train, y_train, X_test, y_test, batch_size = 32, rotations_range = 45, \
 					padding = 'reflect', hori_flip = True, vert_flip = True, brightness_range = [0.2,1.0])
 
 	model = 0
+	#If there are no weights provided, we train the model
 	if(not pre_loaded_weights):
-		model = ntw.unet_4_layers(pretrained_weights = None, input_size = (128,128,3), nb_out_channels = 32)
-		model_checkpoint = ModelCheckpoint(path_to_models + 'keras_model_patch128_final.hdf5', monitor='val_f1_m', verbose=1,\
+		model = ntw.unet_4_layers(pretrained_weights = None, input_size = (128,128,3), nb_out_channels = 32, verbose = 1)
+		model_checkpoint = ModelCheckpoint(path_to_models + 'keras_model_patch128_final.hdf5', monitor='val_f1_m', verbose = 1,\
 							save_best_only=True, mode='max', period=1)
 		# fits the model on batches with real-time data augmentation:
 		terminate = TerminateOnNaN()
-		early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1, mode='min', restore_best_weights=True)
-		reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.4, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=2, min_lr=0) 
+		early_stop = EarlyStopping(monitor='val_loss', min_delta = 0, patience = 10, verbose = 1, mode = 'min', restore_best_weights = True)
+		reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor = 0.4, patience = 5, verbose = 1, mode = 'auto', min_delta = 0.0001, cooldown = 2, min_lr = 0) 
 	
-		data_for_graph = model.fit_generator(train_generator, steps_per_epoch = np.ceil(img_patches.shape[0] * 0.8 / 32), \
+		data_for_graph = model.fit_generator(train_generator, steps_per_epoch = np.ceil(img_patches.shape[0] * (1-validation_ratio) / 32), \
                             epochs=1, callbacks=[model_checkpoint, reduce_lr, terminate, early_stop], validation_data=test_generator, \
-                            validation_steps= np.ceil(img_patches.shape[0] * 0.2 / 32), validation_freq=1)
+                            validation_steps= np.ceil(img_patches.shape[0] * validation_ratio / 32), validation_freq=1)
 	else:
+	#If there are already weights provided, we can just load the model
 		dependencies = {
 		'f1_m': hlp.f1_m,
 		'precision_m': hlp.precision_m,
@@ -82,11 +84,11 @@ def main(argv):
 		model = load_model(path_to_models + 'keras_model_patch128_final.hdf5', custom_objects=dependencies)
 
 	#saves all the 50 predictions on the test set in the results folder
-	hlp.save_all_results_patches(path_to_data, path_to_results, model, patch_size=128, stride=8, glob_remove=False,threshold=16*16)
+	hlp.save_all_results_patches(path_to_data, path_to_results, model, patch_size=128, stride=8, glob_remove=True,threshold=16*16)
 
 	#Create submission csv on the test set
 	hlp.create_sumbmission()
-
+	
 
 if __name__== "__main__" :
 	main(sys.argv[1:])
