@@ -6,11 +6,21 @@ In this project we use our implementation of the UNet to perform road segmentati
 ## How to run the code
 
 Notice that you should first download the data to be able to run the code, they are available at AICrowd at the EPFL ML Road Segmentation 2019 challenge, 
-in the tab 'resources': https://www.aicrowd.com/challenges/epfl-ml-road-segmentation-2019/dataset_files, and save the downloaded files in a folder 'data' that should be put in the 'ML_Project2_Road' folder.  
+in the tab 'resources': [link](https://www.aicrowd.com/challenges/epfl-ml-road-segmentation-2019/dataset_files), and save the downloaded files in a folder 'data' that should be put in the 'ML_Project2_Road' folder.  
 Then you should run the file 'run.py' from 'ML_Project2_Road/scripts/src/'    
 Our code adapts automatically to GPU or CPU, however the training of our neural network is a computationally intensive process. So it is strongly recommended to run it on a GPU with at least 18GB of RAM.   
 The training process takes approximately 2 hours to complete on a GPU, so we stored the weights of the pre-trained network in a hdf5 file on Google Drive. So you can just skip the cell and load the model with the given weights and directly make a prediction.  
-The weights file is available at: "www.."
+To toggle wether you want to use a pre-defined weights file dowloaded from Google Drive, you can add an argument to the main.
+So if you run 
+```python
+python run.py True
+```
+The weights file will be used.  
+If you do not want to use a weights file, just run it without any arguments.
+```python
+python run.py
+```
+The weights file is available at: [link](https://www.a)
 
 ### Prerequisites
 In order to be able to run the code, you should have Python3 installed, the installation of Anaconda is also recommended,
@@ -44,7 +54,8 @@ The folders are organized this way :
 The src folder contains the main python file "run.py" that yields a .csv file with our best predictions
 You can find all the neural networks in the path : /ML_Project2_Road/scripts/utilities/network.py.  
 The other files in the folder utilities are all the functions we used to modularize the code in the project.
-The 'models' and 'results' are just empty folders you have to create in order to save files later.
+The 'models' and 'results' are just empty folders you have to create in order to save files later.  
+If a weights file is to be used, it has to be placed in the models folder.
 
 ## Guide to use the google colab
 If you do not have acces to a GPU, we also have a repository in Google Colab where a GPU is accessible, all the data files are already uploaded
