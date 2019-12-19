@@ -5,6 +5,7 @@ from skimage.util.shape import view_as_windows
 import os
 import matplotlib.image as mpimg
 import scipy
+import masks_to_submission as msk
 
 def make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16):
 	n = len(imgs)
@@ -37,8 +38,15 @@ def load_data(path_prefix):
 	return imgs, gt_imgs
 
 def get_patches_from_img(img, patch_size = 80, stride = 80, binary = True):
-    """ If binary: takes input of shape (size_x, size_y)
-        If not binary: takes input of shape (size_x, size_y,3) """
+    """ Computes the patches for a single image
+		Args:
+			img: input image. If binary: input of shape (size_x, size_y), else: input of shape (size_x, size_y,3)
+			patch_size: size of patches to use
+			stride: stride to be used in patches formation
+			binary: wether the image is binary or not
+		Return:
+			array of patches for image
+    """
     if(binary):
       patch = view_as_windows(img, (patch_size,patch_size), step=stride)
     else:
@@ -46,35 +54,62 @@ def get_patches_from_img(img, patch_size = 80, stride = 80, binary = True):
     return patch
 
 def reconsrtuct_img_from_patches(patch, output_image_size=(400,400), patch_size = 80, stride = 80, mode = 'max', binary= False):
-  """ If binary: takes input of shape (nbpatches_x, nbpatches_y, patch_size, patch_size)
-        If not binary: takes input of shape (nbpatches_x, nbpatches_y, patch_size, patch_size, 3) """
-  reconstructed = np.zeros(output_image_size)
-  normalize_count = np.zeros(output_image_size)
-  ones_patch = np.ones((patch_size,patch_size))
+	""" Reconstructs a single image from patches
+		Args:
+			patch: array of patches, if binary: input shape (nbpatches_x, nbpatches_y, patch_size, patch_size) else
+					input shape (nbpatches_x, nbpatches_y, patch_size, patch_size, 3)
+			output_image_size: size of output image
+			patch_size: size of patches to use
+			stride: stride to be used in patches formation
+			mode: aggragtion method to use for overlapping patches. if values is'max', else takes average
+			binary: wether the image is binary or not
+		Return:
+			array of patches for image
+    """
+    
+	reconstructed = np.zeros(output_image_size)
+	normalize_count = np.zeros(output_image_size)
+	ones_patch = np.ones((patch_size,patch_size))
 
-  if(not binary):
-      ones_patch = np.stack((ones_patch,)*3, axis=-1)
+	if(not binary):
+		ones_patch = np.stack((ones_patch,)*3, axis=-1)
 
-  for i in range(patch.shape[0]):
-    for j in range(patch.shape[1]):
-      normalize_count[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] = \
-                normalize_count[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] + ones_patch
-      if(mode == 'max'):
-          reconstructed[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] = \
-                  np.maximum(reconstructed[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size], patch[i,j])
-      else:
-          reconstructed[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] = \
-                reconstructed[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] + patch[i,j]
+	for i in range(patch.shape[0]):
+		for j in range(patch.shape[1]):
+			normalize_count[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] = \
+							normalize_count[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] + ones_patch
+		if(mode == 'max'):
+			reconstructed[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] = \
+							np.maximum(reconstructed[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size], patch[i,j])
+		else:
+			reconstructed[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] = \
+							reconstructed[i * stride:i * stride + patch_size, j* stride:j* stride + patch_size] + patch[i,j]
 
-  reconstructed = np.divide(reconstructed, normalize_count)
+	reconstructed = np.divide(reconstructed, normalize_count)
 
-  if(binary):
-    reconstructed[reconstructed >= 0.3] = 1
-    reconstructed[reconstructed < 0.3] = 0
-  return reconstructed
+	if(binary):
+		reconstructed[reconstructed >= 0.3] = 1
+		reconstructed[reconstructed < 0.3] = 0
+	return reconstructed
   
 def create_train_test_generators(X_train, y_train, X_test, y_test, batch_size = 32, rotations_range = 0, padding = 'reflect', \
 					hori_flip = False, vert_flip = False, brightness_range = [1.0,1.0], seed = 1):
+	"""Create a test and a train generator to yield images in patches of 32 to the network
+	Args:
+		X_train: train patches
+		y_train: train groundtruth patches 
+		X_test: validation patches
+		y_test: validation groundtruth patches 
+		batch_size: size of the batches
+		rotations_range: angle where random rotations can be performed
+		padding: padding method to be used. possible values: 'reflect' or 'nearest'
+		hori_flip: wether to perform horizontal flip
+		vert_flip: wether to perform horizontal flip
+		brightness_range: range of random brightness tranformations to perform
+		seed: random seed
+	Return:
+		train and test generator
+	"""
 
 	# we define two arguments dictionaries with slightly altered parameters for images and groundtruths
 	data_gen_args = dict(featurewise_center = False,
@@ -167,7 +202,6 @@ def f1_m(y_true, y_pred):
 
 def plot_analyze(data_for_graph):
     """Plots three graphs comparing train and loss: accuracy, loss, validation
-
         Args:
             data_for_graph: historic of training   
     """
@@ -199,18 +233,26 @@ def plot_analyze(data_for_graph):
     plt.show()
 
 def remove_small_globs(prediction, threshold=16*16):
-    labeled, nr_objects = scipy.ndimage.label(prediction)
-    count_per_glob = np.zeros(nr_objects+1)
+	"""
+	Removes objects smaller than threshold in the prediction image
+	Args:
+		prediction: predicted results image
+		threshold: minimum size of object to remove
+	Return:
+		prediction image without small objects
+	"""
+	labeled, nr_objects = scipy.ndimage.label(prediction)
+	count_per_glob = np.zeros(nr_objects+1)
 
-    for i in range(labeled.shape[0]):
-        for u in range(labeled.shape[1]):
-            count_per_glob[labeled[i][u]] = count_per_glob[labeled[i][u]] + 1
-    for i in range(prediction.shape[0]):
-        for u in range(prediction.shape[1]):
-            if count_per_glob[labeled[i][u]] <= threshold:
-                prediction[i][u] = 0
-            # else keep prediction as is and let the thresholding decide if it's a road
-    return prediction
+	for i in range(labeled.shape[0]):
+		for u in range(labeled.shape[1]):
+			count_per_glob[labeled[i][u]] = count_per_glob[labeled[i][u]] + 1
+	for i in range(prediction.shape[0]):
+		for u in range(prediction.shape[1]):
+			if count_per_glob[labeled[i][u]] <= threshold:
+				prediction[i][u] = 0
+			# else keep prediction as is and let the thresholding decide if it's a road
+	return prediction
 
 def to_single_batch(numpy_array):
     """Transform numpy array to corresponding single batch
@@ -231,32 +273,66 @@ def from_single_batch(batch_numpy_array):
     return batch_numpy_array[0]
 
 def predict_with_patches(net, image, patch_size, stride, output_img_size = (608,608), aggregation_method = 'mean'):
-    patches = get_patches_from_img(image, patch_size = patch_size, stride = stride, binary = False)
-    patches = patches.squeeze(2)
-    p1 = patches.shape[0]
-    p2 = patches.shape[1]
-    flatten_size = p1*p2
-    flatten_patches = patches.reshape((flatten_size,patch_size,patch_size,3))
+	"""
+	Predicts results on a single image
+	Args:
+		net: network to be used for prediction
+		image: image to predict upon
+		patch_size: size of patches to use
+		stride: stride to be used in patches formation
+		output_img_size: size of output image
+		aggregation_method: how to aggrgate patches for prediction on entire image. possible values are 'max' or any other string
+	Return
+		returns the prediction on a single image
+	"""
+	patches = get_patches_from_img(image, patch_size = patch_size, stride = stride, binary = False)
+	patches = patches.squeeze(2)
+	p1 = patches.shape[0]
+	p2 = patches.shape[1]
+	flatten_size = p1*p2
+	flatten_patches = patches.reshape((flatten_size,patch_size,patch_size,3))
 
-    predicted_patches = net.predict(flatten_patches)
-    predicted_patches = predicted_patches.reshape((p1,p2,patch_size,patch_size))
-    net_result = reconsrtuct_img_from_patches(predicted_patches, output_img_size, patch_size=patch_size, \
+	predicted_patches = net.predict(flatten_patches)
+	predicted_patches = predicted_patches.reshape((p1,p2,patch_size,patch_size))
+	net_result = reconsrtuct_img_from_patches(predicted_patches, output_img_size, patch_size=patch_size, \
                                               stride = stride, mode = aggregation_method, binary=True)
     
-    return net_result
+	return net_result
 
 def save_all_results_patches(path_to_results, net, patch_size, stride, glob_remove = False, threshold = 100):
-    satelite_images_path = prefix + 'test_set_images'
-    test_paths = glob.glob(satelite_images_path + '/*/*.png')
+	"""
+	Computes all the predcitions on the test set and saves them to a results folder
+	Args:
+		path_to_results: path where the results are to be saved
+		net: network to be used for prediction
+		patch_size: size of patches to use
+		stride: stride to be used in patches formation
+		glob_remove: wether to remove small objects
+		threshold: threshold to be used for small objects removal
+	"""
+	satelite_images_path = prefix + 'test_set_images'
+	test_paths = glob.glob(satelite_images_path + '/*/*.png')
 
-    test_images = list(map(mpimg.imread, test_paths.copy()))
+	test_images = list(map(mpimg.imread, test_paths.copy()))
 
-    for i in range(len(test_images)):
-        print(i)
-        net_result = predict_with_patches(net, test_images[i], patch_size, stride)
-        name = test_paths[i]
-        if glob_remove:
-            net_result = remove_small_globs(net_result, threshold = threshold)
+	for i in range(len(test_images)):
+		net_result = predict_with_patches(net, test_images[i], patch_size, stride)
+		name = test_paths[i]
+		if glob_remove:
+			net_result = remove_small_globs(net_result, threshold = threshold)
         
-        Image.fromarray((net_result*255).astype(np.uint8)).save(path_to_results+"test_image_" + \
+		Image.fromarray((net_result*255).astype(np.uint8)).save(path_to_results+"test_image_" + \
                                                 str(int(re.search(r"\d+", name).group(0))) + ".png", "PNG")
+
+def create_sumbmission():
+	"""
+	creates a submission file named 'submission.csv' which contains all the predictions in the AI crowd format
+	"""
+	submission_filename = 'submission.csv'
+	image_filenames = []
+
+	for i in range(1, 51):
+		image_filename = 'results/test_image_' + '%.1d' % i + '.png'
+		image_filenames.append(image_filename)
+    
+	msk.masks_to_submission(submission_filename, *image_filenames)
