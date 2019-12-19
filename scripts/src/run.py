@@ -8,9 +8,9 @@ Original file is located at
 """
 
 """# About this model
-In this iteration of the project we use the UNet architecture. This code is taken and adapted from https://github.com/milesial/Pytorch-UNet. 
-
-The loss is binary cross entropy with weights calculated from the dataset.
+	Note: this code can only run efficiently on a GPU, so please use either Google Colab or your own cluster
+		The RAM requirements are approximately 18GB
+		The code can be run on a CPU as well but it may take a very long time
 """
 import os, sys
 import re
@@ -23,7 +23,6 @@ import matplotlib.image as mpimg
 import mask_to_submission as msk
 
 from PIL import Image
-from google.colab import drive
 from keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
 from keras.layers import Dropout, Conv2D, UpSampling2D, MaxPooling2D
@@ -31,58 +30,52 @@ from keras.models import compile, fit, fit_generator, predict, predict_generator
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau, EarlyStopping, TerminateOnNaN
 
 from keras import backend as K
-
 import helpers as hlp
 import networks as ntw
 
-prefix = "/content/drive"
-drive.mount(prefix, force_remount=True)
-# needed accesses to the data and more importantly has added it to his drive under /My Drive/Colab Notebooks/road_segmentation/
-prefix = prefix + '/My Drive/Colab Notebooks/road_segmentation/'
 
-# Paths for data and models
-path_to_models = prefix + 'models/jerome/'
-path_to_results = prefix + "results/jerome/"
+def main():
+	# Paths for data and models
+	path_to_models = prefix + 'models/jerome/'
+	path_to_results = prefix + "results/jerome/"
 
-# Load all images
-imgs, gt_images = hlp.load_data(prefix)
+	# Load all images
+	imgs, gt_images = hlp.load_data(prefix)
 
-#create overlapping 128x128 patches
-img_patches, gt_patches = hlp.make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16)
+	#create overlapping 128x128 patches
+	img_patches, gt_patches = hlp.make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16)
 
-#splie the data into 80% train and 20% validation sets
-X_train, X_test, y_train, y_test = train_test_split(img_patches, gt_patches, test_size=0.2, random_state=42)
+	#splie the data into 80% train and 20% validation sets
+	X_train, X_test, y_train, y_test = train_test_split(img_patches, gt_patches, test_size=0.2, random_state=42)
 
-#create generators that yield batches of 32 patches at a time
-train_generator, test_generator = hlp.create_train_test_generators(X_train, y_train, X_test, y_test, batch_size = 32, rotations_range = 45, \
-				padding = 'reflect', hori_flip = True, vert_flip = True, brightness_range = [0.2,1.0])
+	#create generators that yield batches of 32 patches at a time
+	train_generator, test_generator = hlp.create_train_test_generators(X_train, y_train, X_test, y_test, batch_size = 32, rotations_range = 45, \
+					padding = 'reflect', hori_flip = True, vert_flip = True, brightness_range = [0.2,1.0])
 
-model = 0
-if(not pre_loaded_weights):
-	model = ntw.unet_4_layers(pretrained_weights = None, input_size = (128,128,3), nb_out_channels = 32)
-	model_checkpoint = ModelCheckpoint(path_to_models + 'keras_model_patch128_final.hdf5', monitor='val_f1_m', verbose=1,\
-                          save_best_only=True, mode='max', period=1)
-	# fits the model on batches with real-time data augmentation:
-	terminate = TerminateOnNaN()
-	early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1, mode='min', restore_best_weights=True)
-	reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.4, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=2, min_lr=0) 
+	model = 0
+	if(not pre_loaded_weights):
+		model = ntw.unet_4_layers(pretrained_weights = None, input_size = (128,128,3), nb_out_channels = 32)
+		model_checkpoint = ModelCheckpoint(path_to_models + 'keras_model_patch128_final.hdf5', monitor='val_f1_m', verbose=1,\
+							save_best_only=True, mode='max', period=1)
+		# fits the model on batches with real-time data augmentation:
+		terminate = TerminateOnNaN()
+		early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1, mode='min', restore_best_weights=True)
+		reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.4, patience=5, verbose=1, mode='auto', min_delta=0.0001, cooldown=2, min_lr=0) 
 	
-	data_for_graph = model.fit_generator(train_generator, steps_per_epoch=int(img_patches.shape[0] * 0.8 / 32), \
-                                     epochs=200, callbacks=[model_checkpoint, reduce_lr, terminate, early_stop], validation_data=test_generator, \
-                                     validation_steps= int(img_patches.shape[0] * 0.2 / 32)+1, validation_freq=1)
-else:
-	dependencies = {
-    'f1_m': f1_m,
-    'precision_m': precision_m,
-    'recall_m': recall_m,
-    'nnztr_m' : nnztr_m,
-    'nnzte_m' : nnzte_m,
-	}
+		data_for_graph = model.fit_generator(train_generator, steps_per_epoch=int(img_patches.shape[0] * 0.8 / 32), \
+                            epochs=200, callbacks=[model_checkpoint, reduce_lr, terminate, early_stop], validation_data=test_generator, \
+                            validation_steps= int(img_patches.shape[0] * 0.2 / 32)+1, validation_freq=1)
+	else:
+		dependencies = {
+		'f1_m': f1_m,
+		'precision_m': precision_m,
+		'recall_m': recall_m,
+		}
 
-	model = load_model(path_to_models + 'keras_model_patch128_final.hdf5', custom_objects=dependencies)
+		model = load_model(path_to_models + 'keras_model_patch128_final.hdf5', custom_objects=dependencies)
 
-#saves all the 50 predictions on the test set in the results folder
-hlp.save_all_results_patches(path_to_results, net, patch_size=128, stride=8, glob_remove=False,threshold=16*16)
+	#saves all the 50 predictions on the test set in the results folder
+	hlp.save_all_results_patches(path_to_results, net, patch_size=128, stride=8, glob_remove=False,threshold=16*16)
 
-#Create submission csv on the test set
-hlp.create_sumbmission()
+	#Create submission csv on the test set
+	hlp.create_sumbmission()

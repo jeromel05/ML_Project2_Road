@@ -8,6 +8,13 @@ import scipy
 import masks_to_submission as msk
 
 def make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16):
+	"""Tranforms a list of paimages into a list of patches of images
+		Args:
+			imgs: list of images
+			gt_imgs: list of groundtruth images 
+			patch_size: size of patches to use
+			stride: stride to be used in patches formation
+	"""
 	n = len(imgs)
 	img_patches = [get_patches_from_img(imgs[i], patch_size = patch_size1, stride = stride1, binary = False) for i in range(n)]
 	gt_patches = [get_patches_from_img(gt_imgs[i], patch_size = patch_size1, stride = stride1, binary = True) for i in range(n)]
@@ -21,7 +28,15 @@ def make_patches(imgs, gt_imgs, patch_size1 = 128, stride1= 16):
 	
 	return img_patches, gt_patches
 
+
 def load_data(path_prefix):
+	""" Loads the images as a list
+		Args: 
+			path_prefix: The path to the project repository
+		Return:
+			imgs: list of images
+			gt_imgs: list of groundtruth images 
+	"""
 	root_dir = prefix + "data/training/"
 
 	image_dir = root_dir + "images/"
@@ -36,6 +51,7 @@ def load_data(path_prefix):
 	gt_imgs = [mpimg.imread(gt_dir + files[i]) for i in range(n)]
 	
 	return imgs, gt_imgs
+
 
 def get_patches_from_img(img, patch_size = 80, stride = 80, binary = True):
     """ Computes the patches for a single image
@@ -53,6 +69,7 @@ def get_patches_from_img(img, patch_size = 80, stride = 80, binary = True):
       patch = view_as_windows(img, (patch_size,patch_size, 3), step=stride)
     return patch
 
+
 def reconsrtuct_img_from_patches(patch, output_image_size=(400,400), patch_size = 80, stride = 80, mode = 'max', binary= False):
 	""" Reconstructs a single image from patches
 		Args:
@@ -66,7 +83,6 @@ def reconsrtuct_img_from_patches(patch, output_image_size=(400,400), patch_size 
 		Return:
 			array of patches for image
     """
-    
 	reconstructed = np.zeros(output_image_size)
 	normalize_count = np.zeros(output_image_size)
 	ones_patch = np.ones((patch_size,patch_size))
@@ -91,6 +107,7 @@ def reconsrtuct_img_from_patches(patch, output_image_size=(400,400), patch_size 
 		reconstructed[reconstructed >= 0.3] = 1
 		reconstructed[reconstructed < 0.3] = 0
 	return reconstructed
+  
   
 def create_train_test_generators(X_train, y_train, X_test, y_test, batch_size = 32, rotations_range = 0, padding = 'reflect', \
 					hori_flip = False, vert_flip = False, brightness_range = [1.0,1.0], seed = 1):
@@ -187,6 +204,7 @@ def precision_m(y_true, y_pred):
     precision = true_positives / (predicted_positives + K.epsilon())
     return precision
 
+
 def f1_m(y_true, y_pred):
     """Computes the f1-score of the model. Source: https://datascience.stackexchange.com/questions/45165/how-to-get-accuracy-f1-precision-and-recall-for-a-keras-model
     Args:
@@ -232,6 +250,7 @@ def plot_analyze(data_for_graph):
     plt.legend(['Train', 'Validation'], loc='upper left')
     plt.show()
 
+
 def remove_small_globs(prediction, threshold=16*16):
 	"""
 	Removes objects smaller than threshold in the prediction image
@@ -254,6 +273,7 @@ def remove_small_globs(prediction, threshold=16*16):
 			# else keep prediction as is and let the thresholding decide if it's a road
 	return prediction
 
+
 def to_single_batch(numpy_array):
     """Transform numpy array to corresponding single batch
     Args:
@@ -263,6 +283,7 @@ def to_single_batch(numpy_array):
     """
     return np.expand_dims(numpy_array, axis=0)
 
+
 def from_single_batch(batch_numpy_array):
     """Transform single batch to corresponding numpy array  
     Args:
@@ -271,6 +292,7 @@ def from_single_batch(batch_numpy_array):
         corresponding numpy array
     """
     return batch_numpy_array[0]
+
 
 def predict_with_patches(net, image, patch_size, stride, output_img_size = (608,608), aggregation_method = 'mean'):
 	"""
@@ -299,6 +321,7 @@ def predict_with_patches(net, image, patch_size, stride, output_img_size = (608,
     
 	return net_result
 
+
 def save_all_results_patches(path_to_results, net, patch_size, stride, glob_remove = False, threshold = 100):
 	"""
 	Computes all the predcitions on the test set and saves them to a results folder
@@ -323,6 +346,7 @@ def save_all_results_patches(path_to_results, net, patch_size, stride, glob_remo
         
 		Image.fromarray((net_result*255).astype(np.uint8)).save(path_to_results+"test_image_" + \
                                                 str(int(re.search(r"\d+", name).group(0))) + ".png", "PNG")
+
 
 def create_sumbmission():
 	"""
