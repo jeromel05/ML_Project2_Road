@@ -21,8 +21,8 @@ If you do not want to use a weights file, just run it without any arguments.
 python run.py
 ```
 The weights file can be accessed via two different ways:   
-    - Log in the following Google account: username: jean.berrrrard@gmail.com password: 123machinelearning    
-    - Follow the shared [link](https://drive.google.com/open?id=1zwEvRAaReWuBGjuhLPkGcYQFkfcgHnts) that gives you access to the google             drive folder named Road Segmentation  
+    - Log in the following Google account:   
+    - Follow the shared  that gives you access to the google drive folder named Road Segmentation  
     The file is located at: Colab Notebooks/road_segamentation/models/saved_net/keras_patch128_new1.hdf5  
 
 ### Prerequisites
@@ -69,7 +69,7 @@ If you do not have acces to a GPU, we also have a repository in Google Colab whe
 and the libraries are already pre-installed.  
 To have the exact environment we used to train the network you can use our google colab code. You can either you the account provided above or follow these instructions:    
  
-    - 1: follow the share [link](https://drive.google.com/open?id=1zwEvRAaReWuBGjuhLPkGcYQFkfcgHnts)  
+    - 1: follow the share   
     - 2: locate the previously shared folder "road segmentation project" in "Shared with me" on your google drive.  
     - 3 (optional): if you never have created a google colabotary file you need to:  
         - 3.1: head to https://colab.research.google.com/ and create a "new notebook in python 3"  
